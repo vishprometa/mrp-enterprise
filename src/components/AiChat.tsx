@@ -7,13 +7,18 @@ import { usePathname } from 'next/navigation';
 
 interface ContentBlock {
   id: string;
-  type: 'text' | 'thinking' | 'tool_start' | 'tool_end' | 'data_table' | 'error' | 'chart';
-  content: string;
-  tool?: string;
-  rows?: number;
-  total?: number;
-  data?: Record<string, unknown>[];
-  status?: 'running' | 'complete';
+  format: string; // text, code_execution, skillblock, app_plan, etc.
+  content: unknown;
+  subtitle?: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface SSEBlock {
+  id: string;
+  type: 'thinking' | 'block' | 'text_delta' | 'error' | 'done' | 'status' | 'thread_title';
+  block?: ContentBlock;
+  content?: string;
+  threadId?: string;
 }
 
 interface ChatMessage {
@@ -49,31 +54,20 @@ const SUGGESTIONS = [
 
 function renderMarkdown(text: string): string {
   let html = text
-    // Escape HTML
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    // Code blocks
     .replace(/```(\w*)\n([\s\S]*?)```/g, '<pre class="ai-code-block"><code>$2</code></pre>')
-    // Inline code
     .replace(/`([^`]+)`/g, '<code class="ai-inline-code">$1</code>')
-    // Bold
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    // Italic
     .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Headers
     .replace(/^### (.+)$/gm, '<h4 class="ai-md-h4">$1</h4>')
     .replace(/^## (.+)$/gm, '<h3 class="ai-md-h3">$1</h3>')
     .replace(/^# (.+)$/gm, '<h2 class="ai-md-h2">$1</h2>')
-    // Links
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener" class="ai-link">$1</a>')
-    // Bullet lists
     .replace(/^[*-] (.+)$/gm, '<li>$1</li>')
-    // Numbered lists
     .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-    // Line breaks
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br/>');
 
-  // Wrap consecutive <li> in <ul>
   html = html.replace(/(<li>.*?<\/li>(\s*<br\/>)?)+/g, (match) => {
     return '<ul class="ai-md-list">' + match.replace(/<br\/>/g, '') + '</ul>';
   });
@@ -81,25 +75,141 @@ function renderMarkdown(text: string): string {
   return `<p>${html}</p>`;
 }
 
+/* ─── Extract text from content block ──────── */
+
+function extractBlockText(block: ContentBlock): string {
+  const content = block.content;
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    // Skillblock format: array of { type, content, ... }
+    return content
+      .map((item: Record<string, unknown>) => {
+        if (item.type === 'text' && typeof item.content === 'string') return item.content;
+        if (item.type === 'markdown' && typeof item.content === 'string') return item.content;
+        if (item.type === 'table' && item.content) return ''; // Tables rendered separately
+        if (item.type === 'loader') {
+          const name = item.name || item.action || 'Processing';
+          const status = item.isLoading === false ? '✓' : '⟳';
+          return `${status} ${name}`;
+        }
+        return '';
+      })
+      .filter(Boolean)
+      .join('\n');
+  }
+  if (content && typeof content === 'object') {
+    // Object content — try to extract text
+    const obj = content as Record<string, unknown>;
+    if (typeof obj.text === 'string') return obj.text;
+    if (typeof obj.answer === 'string') return obj.answer;
+    return '';
+  }
+  return '';
+}
+
+/* ─── Extract tables from content block ────── */
+
+function extractBlockTables(block: ContentBlock): Record<string, unknown>[][] {
+  const content = block.content;
+  if (!Array.isArray(content)) return [];
+
+  return content
+    .filter((item: Record<string, unknown>) => item.type === 'table' && item.content)
+    .map((item: Record<string, unknown>) => {
+      const tableContent = item.content;
+      if (Array.isArray(tableContent)) return tableContent as Record<string, unknown>[];
+      if (tableContent && typeof tableContent === 'object') {
+        const tc = tableContent as Record<string, unknown>;
+        if (Array.isArray(tc.rows)) return tc.rows as Record<string, unknown>[];
+        if (Array.isArray(tc.data)) return tc.data as Record<string, unknown>[];
+      }
+      return [];
+    })
+    .filter((t) => t.length > 0);
+}
+
+/* ─── Extract tool/skill info from block ───── */
+
+function extractSkillInfo(block: ContentBlock): { name: string; isLoading: boolean }[] {
+  const content = block.content;
+  if (!Array.isArray(content)) return [];
+
+  return content
+    .filter((item: Record<string, unknown>) => item.type === 'loader')
+    .map((item: Record<string, unknown>) => ({
+      name: String(item.name || item.action || 'Processing'),
+      isLoading: item.isLoading !== false,
+    }));
+}
+
+/* ─── Extract code from block ──────────────── */
+
+function extractCodeBlocks(block: ContentBlock): { language: string; code: string; output?: string }[] {
+  if (block.format === 'code_execution') {
+    const content = block.content as Record<string, unknown>;
+    return [{
+      language: String(content?.language || 'sql'),
+      code: String(content?.code || content?.query || ''),
+      output: content?.output ? String(content.output) : undefined,
+    }];
+  }
+
+  if (Array.isArray(block.content)) {
+    return (block.content as Record<string, unknown>[])
+      .filter((item) => item.type === 'code' || item.type === 'sql')
+      .map((item) => ({
+        language: String(item.language || 'sql'),
+        code: String(item.content || item.code || ''),
+        output: item.output ? String(item.output) : undefined,
+      }));
+  }
+
+  return [];
+}
+
 /* ─── ToolBlock Component ───────────────────── */
 
-function ToolBlock({ block }: { block: ContentBlock }) {
-  const [expanded, setExpanded] = useState(false);
-  const isRunning = block.type === 'tool_start';
-  const icon = isRunning ? '⟳' : '✓';
-  const label = block.tool === 'execute_sql' ? 'SQL Query' : (block.tool || 'Tool');
+function ToolBlock({ skills }: { skills: { name: string; isLoading: boolean }[] }) {
+  if (skills.length === 0) return null;
 
   return (
-    <div className={`ai-tool-block ${isRunning ? 'running' : 'complete'}`}>
+    <div className="ai-tool-blocks">
+      {skills.map((skill, i) => (
+        <div key={i} className={`ai-tool-block ${skill.isLoading ? 'running' : 'complete'}`}>
+          <div className="ai-tool-header">
+            <span className={`ai-tool-icon ${skill.isLoading ? 'spinning' : ''}`}>
+              {skill.isLoading ? '⟳' : '✓'}
+            </span>
+            <span className="ai-tool-label">{skill.name}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── CodeBlock Component ──────────────────── */
+
+function CodeBlock({ code, language, output }: { code: string; language: string; output?: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  if (!code) return null;
+
+  return (
+    <div className="ai-tool-block complete">
       <button className="ai-tool-header" onClick={() => setExpanded(!expanded)}>
-        <span className={`ai-tool-icon ${isRunning ? 'spinning' : ''}`}>{icon}</span>
-        <span className="ai-tool-label">{label}</span>
-        {block.rows !== undefined && <span className="ai-tool-meta">{block.rows} rows</span>}
+        <span className="ai-tool-icon">✓</span>
+        <span className="ai-tool-label">{language.toUpperCase()} Query</span>
         <svg className={`ai-tool-chevron ${expanded ? 'open' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
-      {expanded && block.content && (
+      {expanded && (
         <div className="ai-tool-body">
-          <pre className="ai-tool-sql">{block.content}</pre>
+          <pre className="ai-tool-sql">{code}</pre>
+          {output && (
+            <div className="ai-tool-output">
+              <pre>{output}</pre>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -112,7 +222,11 @@ function DataTable({ data, total }: { data: Record<string, unknown>[]; total?: n
   const [expanded, setExpanded] = useState(false);
   if (!data || data.length === 0) return null;
 
-  const keys = Object.keys(data[0]);
+  const keys = Object.keys(data[0]).filter(
+    (k) => !k.startsWith('_') && !k.endsWith('_id') && !k.startsWith('rec_') && !k.startsWith('related_') && k !== 'draft' && k !== 'sequence_format_id'
+  );
+  if (keys.length === 0) return null;
+
   const displayData = expanded ? data : data.slice(0, 5);
 
   return (
@@ -165,6 +279,40 @@ function ThinkingIndicator() {
   );
 }
 
+/* ─── ContentBlockRenderer ─────────────────── */
+
+function ContentBlockRenderer({ block, isStreaming }: { block: ContentBlock; isStreaming?: boolean }) {
+  const text = extractBlockText(block);
+  const tables = extractBlockTables(block);
+  const skills = extractSkillInfo(block);
+  const codeBlocks = extractCodeBlocks(block);
+
+  return (
+    <>
+      {/* Skill/tool indicators */}
+      {skills.length > 0 && <ToolBlock skills={skills} />}
+
+      {/* Code blocks */}
+      {codeBlocks.map((cb, i) => (
+        <CodeBlock key={`code-${i}`} code={cb.code} language={cb.language} output={cb.output} />
+      ))}
+
+      {/* Text content */}
+      {text && (
+        <div className="ai-msg-text">
+          <div className="ai-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(text) }} />
+          {isStreaming && <span className="ai-cursor" />}
+        </div>
+      )}
+
+      {/* Data tables */}
+      {tables.map((tableData, i) => (
+        <DataTable key={`table-${i}`} data={tableData} />
+      ))}
+    </>
+  );
+}
+
 /* ─── Main Chat Component ───────────────────── */
 
 export default function AiChat({ open, onClose }: AiChatProps) {
@@ -172,6 +320,7 @@ export default function AiChat({ open, onClose }: AiChatProps) {
   const [input, setInput] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [threadId, setThreadId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -189,7 +338,6 @@ export default function AiChat({ open, onClose }: AiChatProps) {
     scrollToBottom();
   }, [messages, scrollToBottom]);
 
-  // Detect user scroll
   useEffect(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
@@ -201,12 +349,10 @@ export default function AiChat({ open, onClose }: AiChatProps) {
     return () => container.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Focus input when opened
   useEffect(() => {
     if (open) setTimeout(() => textareaRef.current?.focus(), 300);
   }, [open]);
 
-  // Auto-resize textarea
   useEffect(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -214,14 +360,13 @@ export default function AiChat({ open, onClose }: AiChatProps) {
     ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
   }, [input]);
 
-  // Stop streaming
   const stopStreaming = useCallback(() => {
     abortController?.abort();
     setIsStreaming(false);
     setMessages(prev => prev.map(m => m.isStreaming ? { ...m, isStreaming: false } : m));
   }, [abortController]);
 
-  // Send message with SSE streaming
+  // Send message with SSE streaming via agent API
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || isStreaming) return;
@@ -255,7 +400,10 @@ export default function AiChat({ open, onClose }: AiChatProps) {
       const res = await fetch('/api/ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: trimmed, stream: true }),
+        body: JSON.stringify({
+          message: trimmed,
+          threadId: threadId || undefined,
+        }),
         signal: controller.signal,
       });
 
@@ -269,8 +417,8 @@ export default function AiChat({ open, onClose }: AiChatProps) {
 
       const decoder = new TextDecoder();
       let buffer = '';
-      let accumulatedText = '';
       const blocks: ContentBlock[] = [];
+      let accumulatedText = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -285,76 +433,101 @@ export default function AiChat({ open, onClose }: AiChatProps) {
           const jsonStr = line.slice(6).trim();
           if (!jsonStr) continue;
 
-          let event: Record<string, unknown>;
+          let event: SSEBlock;
           try { event = JSON.parse(jsonStr); } catch { continue; }
 
-          const type = event.type as string;
-
-          switch (type) {
-            case 'thinking': {
-              blocks.push({ id: uid(), type: 'thinking', content: String(event.content || ''), status: 'running' });
-              break;
-            }
-            case 'tool_start': {
-              // Remove thinking block when tool starts
-              const thinkIdx = blocks.findIndex(b => b.type === 'thinking');
-              if (thinkIdx !== -1) blocks.splice(thinkIdx, 1);
-              blocks.push({ id: uid(), type: 'tool_start', content: String(event.content || ''), tool: String(event.tool || ''), status: 'running' });
-              break;
-            }
-            case 'tool_end': {
-              // Replace tool_start with tool_end
-              const startIdx = blocks.findIndex(b => b.type === 'tool_start' && b.tool === event.tool);
-              if (startIdx !== -1) {
-                blocks[startIdx] = { ...blocks[startIdx], type: 'tool_end', content: String(event.content || ''), rows: event.rows as number, status: 'complete' };
-              } else {
-                blocks.push({ id: uid(), type: 'tool_end', content: String(event.content || ''), tool: String(event.tool || ''), rows: event.rows as number, status: 'complete' });
+          switch (event.type) {
+            case 'status': {
+              // Thread ID from server
+              if (event.threadId && !threadId) {
+                setThreadId(event.threadId);
               }
               break;
             }
+
+            case 'thinking': {
+              // Add or update thinking block
+              const existing = blocks.find(b => b.format === 'thinking');
+              if (!existing) {
+                blocks.push({
+                  id: uid(),
+                  format: 'thinking',
+                  content: event.content || 'Analyzing...',
+                });
+              }
+              break;
+            }
+
+            case 'block': {
+              // Remove thinking on first real block
+              const thinkIdx = blocks.findIndex(b => b.format === 'thinking');
+              if (thinkIdx !== -1) blocks.splice(thinkIdx, 1);
+
+              if (event.block) {
+                const existingIdx = blocks.findIndex(b => b.id === event.block!.id);
+                if (existingIdx !== -1) {
+                  // Update existing block
+                  blocks[existingIdx] = { ...blocks[existingIdx], ...event.block };
+                } else {
+                  // Add new block
+                  blocks.push(event.block);
+                }
+              }
+              break;
+            }
+
             case 'text_delta': {
-              // Remove thinking block on first text
-              const thinkIdx2 = blocks.findIndex(b => b.type === 'thinking');
+              // Remove thinking on text
+              const thinkIdx2 = blocks.findIndex(b => b.format === 'thinking');
               if (thinkIdx2 !== -1) blocks.splice(thinkIdx2, 1);
 
-              accumulatedText += String(event.content || '');
-              const textBlock = blocks.find(b => b.type === 'text');
+              accumulatedText += event.content || '';
+              const textBlock = blocks.find(b => b.format === 'text' && b.id === '_text_accumulator');
               if (textBlock) {
                 textBlock.content = accumulatedText;
               } else {
-                blocks.push({ id: uid(), type: 'text', content: accumulatedText });
+                blocks.push({ id: '_text_accumulator', format: 'text', content: accumulatedText });
               }
               break;
             }
-            case 'data_table': {
+
+            case 'thread_title': {
+              if (event.threadId) setThreadId(event.threadId);
+              break;
+            }
+
+            case 'error': {
+              // Remove thinking
+              const thinkIdx3 = blocks.findIndex(b => b.format === 'thinking');
+              if (thinkIdx3 !== -1) blocks.splice(thinkIdx3, 1);
+
               blocks.push({
                 id: uid(),
-                type: 'data_table',
-                content: '',
-                data: event.content as Record<string, unknown>[],
-                total: event.total as number,
+                format: 'error',
+                content: event.content || 'Unknown error',
               });
               break;
             }
-            case 'error': {
-              blocks.push({ id: uid(), type: 'error', content: String(event.content || 'Unknown error') });
-              break;
-            }
+
             case 'done': {
+              if (event.threadId) setThreadId(event.threadId);
+              // Remove thinking if still present
+              const thinkIdx4 = blocks.findIndex(b => b.format === 'thinking');
+              if (thinkIdx4 !== -1) blocks.splice(thinkIdx4, 1);
               break;
             }
           }
 
-          // Update messages state with new blocks
+          // Update messages with current blocks
           setMessages(prev => prev.map(m =>
             m.id === assistantMsg.id
-              ? { ...m, blocks: [...blocks], isStreaming: type !== 'done' }
+              ? { ...m, blocks: [...blocks], isStreaming: event.type !== 'done' }
               : m
           ));
         }
       }
 
-      // Final update — mark streaming complete
+      // Final update
       setMessages(prev => prev.map(m =>
         m.id === assistantMsg.id ? { ...m, blocks: [...blocks], isStreaming: false } : m
       ));
@@ -367,7 +540,7 @@ export default function AiChat({ open, onClose }: AiChatProps) {
         const errMsg = err instanceof Error ? err.message : 'Connection error';
         setMessages(prev => prev.map(m =>
           m.id === assistantMsg.id
-            ? { ...m, blocks: [{ id: uid(), type: 'error', content: errMsg }], isStreaming: false }
+            ? { ...m, blocks: [{ id: uid(), format: 'error', content: errMsg }], isStreaming: false }
             : m
         ));
       }
@@ -375,7 +548,7 @@ export default function AiChat({ open, onClose }: AiChatProps) {
       setIsStreaming(false);
       setAbortController(null);
     }
-  }, [isStreaming]);
+  }, [isStreaming, threadId]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -387,17 +560,15 @@ export default function AiChat({ open, onClose }: AiChatProps) {
   const clearChat = () => {
     setMessages([]);
     setInput('');
+    setThreadId(null);
   };
 
-  // Get page context label
   const pageContext = pathname === '/' ? 'Dashboard' : pathname.slice(1).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 
   return (
     <>
-      {/* Backdrop */}
       {open && <div className="ai-panel-overlay" onClick={onClose} />}
 
-      {/* Panel */}
       <div className={`ai-panel ${open ? 'open' : ''}`}>
         {/* Header */}
         <div className="ai-panel-header">
@@ -409,7 +580,7 @@ export default function AiChat({ open, onClose }: AiChatProps) {
               MRP AI
               <span className="ai-badge">BETA</span>
             </h3>
-            <span className="ai-header-sub">Powered by ERPAI</span>
+            <span className="ai-header-sub">Powered by ERPAI Agent</span>
           </div>
           <div className="ai-header-actions">
             <button className="ai-header-btn" onClick={clearChat} title="New chat">
@@ -427,7 +598,6 @@ export default function AiChat({ open, onClose }: AiChatProps) {
 
         {/* Messages */}
         <div className="ai-panel-messages" ref={messagesContainerRef}>
-          {/* Empty state */}
           {messages.length === 0 && !isStreaming && (
             <div className="ai-empty-state">
               <div className="ai-empty-icon">
@@ -450,7 +620,6 @@ export default function AiChat({ open, onClose }: AiChatProps) {
             </div>
           )}
 
-          {/* Message list */}
           {messages.map((msg) => (
             <div key={msg.id} className={`ai-msg ai-msg-${msg.role}`}>
               {msg.role === 'assistant' && (
@@ -466,31 +635,24 @@ export default function AiChat({ open, onClose }: AiChatProps) {
                 ) : (
                   <div className="ai-msg-blocks">
                     {msg.blocks.map((block) => {
-                      switch (block.type) {
-                        case 'thinking':
-                          return <ThinkingIndicator key={block.id} />;
-                        case 'tool_start':
-                        case 'tool_end':
-                          return <ToolBlock key={block.id} block={block} />;
-                        case 'text':
-                          return (
-                            <div key={block.id} className="ai-msg-text">
-                              <div className="ai-markdown" dangerouslySetInnerHTML={{ __html: renderMarkdown(block.content) }} />
-                              {msg.isStreaming && <span className="ai-cursor" />}
-                            </div>
-                          );
-                        case 'data_table':
-                          return <DataTable key={block.id} data={block.data || []} total={block.total} />;
-                        case 'error':
-                          return (
-                            <div key={block.id} className="ai-error-block">
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
-                              {block.content}
-                            </div>
-                          );
-                        default:
-                          return null;
+                      if (block.format === 'thinking') {
+                        return <ThinkingIndicator key={block.id} />;
                       }
+                      if (block.format === 'error') {
+                        return (
+                          <div key={block.id} className="ai-error-block">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+                            {typeof block.content === 'string' ? block.content : 'An error occurred'}
+                          </div>
+                        );
+                      }
+                      return (
+                        <ContentBlockRenderer
+                          key={block.id}
+                          block={block}
+                          isStreaming={msg.isStreaming}
+                        />
+                      );
                     })}
                     {msg.isStreaming && msg.blocks.length === 0 && <ThinkingIndicator />}
                   </div>
@@ -519,6 +681,11 @@ export default function AiChat({ open, onClose }: AiChatProps) {
               <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
               {pageContext}
             </span>
+            {threadId && (
+              <span className="ai-context-chip" style={{ opacity: 0.5, fontSize: '9px' }}>
+                Thread active
+              </span>
+            )}
           </div>
           <div className="ai-input-row">
             <textarea
