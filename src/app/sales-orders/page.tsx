@@ -17,9 +17,10 @@ const formFields = [
   { name: 'SO Number', label: 'SO Number', type: 'text' as const, required: true },
   { name: 'Order Date', label: 'Order Date', type: 'date' as const, required: true },
   { name: 'Required Date', label: 'Required Date', type: 'date' as const },
-  { name: 'Total Amount', label: 'Total Amount', type: 'number' as const },
-  { name: 'Priority', label: 'Priority', type: 'select' as const, options: ['High', 'Medium', 'Low'] },
   { name: 'Status', label: 'Status', type: 'select' as const, options: ['Draft', 'Confirmed', 'In Production', 'Ready to Ship', 'Shipped', 'Delivered', 'Cancelled'] },
+  { name: 'Total Amount', label: 'Total Amount', type: 'number' as const },
+  { name: 'Priority', label: 'Priority', type: 'select' as const, options: ['High', 'Medium', 'Low', 'Urgent'] },
+  { name: 'Shipping Method', label: 'Shipping Method', type: 'select' as const, options: ['Ground', 'Air', 'Sea', 'Express'] },
   { name: 'Notes', label: 'Notes', type: 'textarea' as const },
 ]
 

@@ -5,36 +5,47 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { TABLES } from '@/lib/tables'
 
 const columns = [
-  { key: 'Item Code', label: 'Item Code' },
-  { key: 'Item Name', label: 'Item Name' },
-  { key: 'Category', label: 'Category' },
-  { key: 'Unit Price', label: 'Unit Price' },
-  { key: 'Reorder Level', label: 'Reorder Level' },
+  { key: 'SKU', label: 'SKU' },
+  { key: 'Item Type', label: 'Item Type', render: (v: any) => <StatusBadge value={v} /> },
+  { key: 'Category', label: 'Category', render: (v: any) => <StatusBadge value={v} /> },
+  { key: 'Unit of Measure', label: 'Unit of Measure' },
+  { key: 'Standard Cost', label: 'Standard Cost' },
   { key: 'Safety Stock', label: 'Safety Stock' },
   { key: 'Status', label: 'Status', render: (v: any) => <StatusBadge value={v} /> },
 ]
 
 const formFields = [
-  { name: 'Item Code', label: 'Item Code', type: 'text', required: true },
-  { name: 'Item Name', label: 'Item Name', type: 'text', required: true },
+  { name: 'SKU', label: 'SKU', type: 'text', required: true },
+  { name: 'Description', label: 'Description', type: 'textarea' },
+  {
+    name: 'Item Type',
+    label: 'Item Type',
+    type: 'select',
+    options: ['Raw Material', 'Semi-Finished', 'Finished Good', 'Consumable'],
+  },
   {
     name: 'Category',
     label: 'Category',
     type: 'select',
-    options: ['Raw Material', 'Finished Good', 'Semi-Finished', 'Consumable', 'Spare Part'],
+    options: ['Metal', 'Plastic', 'Electronic', 'Chemical', 'Mechanical'],
   },
-  { name: 'Unit Price', label: 'Unit Price', type: 'number' },
-  { name: 'Reorder Level', label: 'Reorder Level', type: 'number' },
-  { name: 'Reorder Quantity', label: 'Reorder Quantity', type: 'number' },
+  { name: 'Unit of Measure', label: 'Unit of Measure', type: 'text' },
   { name: 'Lead Time Days', label: 'Lead Time Days', type: 'number' },
   { name: 'Safety Stock', label: 'Safety Stock', type: 'number' },
+  { name: 'Reorder Point', label: 'Reorder Point', type: 'number' },
+  { name: 'Standard Cost', label: 'Standard Cost', type: 'number' },
+  { name: 'Weight', label: 'Weight', type: 'number' },
   {
     name: 'Status',
     label: 'Status',
     type: 'select',
-    options: ['Active', 'Inactive', 'Obsolete'],
+    options: ['Active', 'Inactive', 'Pending Approval', 'Obsolete'],
   },
-  { name: 'Description', label: 'Description', type: 'textarea' },
+  { name: 'Min Order Qty', label: 'Min Order Qty', type: 'number' },
+  { name: 'Max Order Qty', label: 'Max Order Qty', type: 'number' },
+  { name: 'Shelf Life Days', label: 'Shelf Life Days', type: 'number' },
+  { name: 'Storage Conditions', label: 'Storage Conditions', type: 'text' },
+  { name: 'Notes', label: 'Notes', type: 'textarea' },
 ]
 
 export default function ItemsPage() {

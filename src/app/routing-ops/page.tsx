@@ -5,21 +5,22 @@ import { TABLES } from '@/lib/tables'
 
 const columns = [
   { key: 'Operation Number', label: 'Operation Number' },
-  { key: 'Name', label: 'Name' },
-  { key: 'Setup Time Minutes', label: 'Setup Time Minutes' },
-  { key: 'Run Time Minutes', label: 'Run Time Minutes' },
-  { key: 'Move Time Minutes', label: 'Move Time Minutes' },
-  { key: 'Queue Time Minutes', label: 'Queue Time Minutes' },
+  { key: 'Operation Name', label: 'Operation Name' },
+  { key: 'Setup Time Mins', label: 'Setup Time Mins' },
+  { key: 'Run Time Per Unit', label: 'Run Time Per Unit' },
+  { key: 'Queue Time Mins', label: 'Queue Time Mins' },
+  { key: 'Move Time Mins', label: 'Move Time Mins' },
 ]
 
 const formFields = [
   { name: 'Operation Number', label: 'Operation Number', type: 'number' as const, required: true },
-  { name: 'Name', label: 'Name', type: 'text' as const, required: true },
-  { name: 'Setup Time Minutes', label: 'Setup Time Minutes', type: 'number' as const },
-  { name: 'Run Time Minutes', label: 'Run Time Minutes', type: 'number' as const },
-  { name: 'Move Time Minutes', label: 'Move Time Minutes', type: 'number' as const },
-  { name: 'Queue Time Minutes', label: 'Queue Time Minutes', type: 'number' as const },
+  { name: 'Operation Name', label: 'Operation Name', type: 'text' as const, required: true },
   { name: 'Description', label: 'Description', type: 'textarea' as const },
+  { name: 'Setup Time Mins', label: 'Setup Time Mins', type: 'number' as const },
+  { name: 'Run Time Per Unit', label: 'Run Time Per Unit', type: 'number' as const },
+  { name: 'Queue Time Mins', label: 'Queue Time Mins', type: 'number' as const },
+  { name: 'Move Time Mins', label: 'Move Time Mins', type: 'number' as const },
+  { name: 'Notes', label: 'Notes', type: 'textarea' as const },
 ]
 
 export default function RoutingOpsPage() {

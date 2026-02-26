@@ -4,21 +4,23 @@ import { CrudPage } from '@/components/CrudPage'
 import { TABLES } from '@/lib/tables'
 
 const columns = [
-  { key: 'Quantity On Hand', label: 'Quantity On Hand' },
-  { key: 'Quantity Reserved', label: 'Quantity Reserved' },
-  { key: 'Quantity Available', label: 'Quantity Available' },
+  { key: 'Qty On Hand', label: 'Qty On Hand' },
+  { key: 'Qty Reserved', label: 'Qty Reserved' },
+  { key: 'Qty Available', label: 'Qty Available' },
   { key: 'Lot Number', label: 'Lot Number' },
   { key: 'Expiry Date', label: 'Expiry Date', render: (v: any) => v ? new Date(v).toLocaleDateString() : '—' },
-  { key: 'Location', label: 'Location' },
+  { key: 'Bin Location', label: 'Bin Location' },
 ]
 
 const formFields = [
-  { name: 'Quantity On Hand', label: 'Quantity On Hand', type: 'number' as const, required: true },
-  { name: 'Quantity Reserved', label: 'Quantity Reserved', type: 'number' as const },
-  { name: 'Quantity Available', label: 'Quantity Available', type: 'number' as const },
+  { name: 'Qty On Hand', label: 'Qty On Hand', type: 'number' as const, required: true },
+  { name: 'Qty Reserved', label: 'Qty Reserved', type: 'number' as const },
+  { name: 'Qty Available', label: 'Qty Available', type: 'number' as const },
   { name: 'Lot Number', label: 'Lot Number', type: 'text' as const },
   { name: 'Expiry Date', label: 'Expiry Date', type: 'date' as const },
-  { name: 'Location', label: 'Location', type: 'text' as const },
+  { name: 'Last Count Date', label: 'Last Count Date', type: 'date' as const },
+  { name: 'Bin Location', label: 'Bin Location', type: 'text' as const },
+  { name: 'Notes', label: 'Notes', type: 'textarea' as const },
 ]
 
 export default function InventoryPage() {

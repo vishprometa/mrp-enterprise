@@ -5,28 +5,22 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { TABLES } from '@/lib/tables'
 
 const columns = [
-  { key: 'Plan Name', label: 'Plan Name' },
+  { key: 'Plan Date', label: 'Plan Date', render: (v: any) => v ? new Date(v).toLocaleDateString() : '—' },
   { key: 'Period Start', label: 'Period Start', render: (v: any) => v ? new Date(v).toLocaleDateString() : '—' },
   { key: 'Period End', label: 'Period End', render: (v: any) => v ? new Date(v).toLocaleDateString() : '—' },
   { key: 'Planned Hours', label: 'Planned Hours' },
   { key: 'Available Hours', label: 'Available Hours' },
-  { key: 'Utilization Percent', label: 'Utilization Percent' },
-  { key: 'Status', label: 'Status', render: (v: any) => <StatusBadge value={v} /> },
+  { key: 'Utilization Pct', label: 'Utilization Pct' },
 ]
 
 const formFields = [
-  { name: 'Plan Name', label: 'Plan Name', type: 'text' as const, required: true },
+  { name: 'Plan Date', label: 'Plan Date', type: 'date' as const, required: true },
   { name: 'Period Start', label: 'Period Start', type: 'date' as const, required: true },
   { name: 'Period End', label: 'Period End', type: 'date' as const, required: true },
   { name: 'Planned Hours', label: 'Planned Hours', type: 'number' as const },
   { name: 'Available Hours', label: 'Available Hours', type: 'number' as const },
-  { name: 'Utilization Percent', label: 'Utilization Percent', type: 'number' as const },
-  {
-    name: 'Status',
-    label: 'Status',
-    type: 'select' as const,
-    options: ['Draft', 'Active', 'Approved'],
-  },
+  { name: 'Utilization Pct', label: 'Utilization Pct', type: 'number' as const },
+  { name: 'Overtime Hours', label: 'Overtime Hours', type: 'number' as const },
   { name: 'Notes', label: 'Notes', type: 'textarea' as const },
 ]
 

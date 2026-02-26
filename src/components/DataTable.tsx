@@ -28,24 +28,40 @@ export function DataTable({ columns, data, totalCount, page, pageSize, onPageCha
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+      {/* Page Header */}
+      <div className="page-header">
         <div>
-          <h2 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>{title}</h2>
-          <p style={{ fontSize: 13, color: '#64748b', margin: '4px 0 0' }}>{totalCount} records</p>
+          <h1 className="page-title">{title}</h1>
+          <p className="page-count">{totalCount} record{totalCount !== 1 ? 's' : ''}</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="toolbar-actions">
           {onSearch && (
-            <form onSubmit={(e) => { e.preventDefault(); onSearch(search); }} style={{ display: 'flex', gap: 4 }}>
-              <input className="input" style={{ width: 220 }} placeholder="Search..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <form onSubmit={(e) => { e.preventDefault(); onSearch(search); }} style={{ display: 'flex', gap: 6 }}>
+              <div className="search-bar">
+                <span className="search-icon">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                </span>
+                <input
+                  className="input"
+                  style={{ width: 240 }}
+                  placeholder="Search records..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
               <button className="btn btn-secondary btn-sm" type="submit">Search</button>
             </form>
           )}
           {actions}
         </div>
       </div>
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+
+      {/* Table Card */}
+      <div className="table-container">
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center' }}><div className="spinner" style={{ margin: '0 auto' }} /></div>
+          <div className="loading-container">
+            <div className="spinner" />
+          </div>
         ) : (
           <table className="data-table">
             <thead>
@@ -53,11 +69,22 @@ export function DataTable({ columns, data, totalCount, page, pageSize, onPageCha
             </thead>
             <tbody>
               {data.length === 0 ? (
-                <tr><td colSpan={columns.length} style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>No records found</td></tr>
+                <tr>
+                  <td colSpan={columns.length}>
+                    <div className="empty-state">
+                      <div className="empty-state-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" style={{ opacity: 0.3 }}>
+                          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/>
+                        </svg>
+                      </div>
+                      No records found
+                    </div>
+                  </td>
+                </tr>
               ) : data.map((row, i) => (
                 <tr key={row.id || i} onClick={() => onRowClick?.(row)} style={{ cursor: onRowClick ? 'pointer' : undefined }}>
                   {columns.map((col) => (
-                    <td key={col.key}>{col.render ? col.render(row[col.key], row) : String(row[col.key] ?? '')}</td>
+                    <td key={col.key}>{col.render ? col.render(row[col.key], row) : String(row[col.key] ?? '—')}</td>
                   ))}
                 </tr>
               ))}
@@ -65,11 +92,19 @@ export function DataTable({ columns, data, totalCount, page, pageSize, onPageCha
           </table>
         )}
       </div>
+
+      {/* Pagination */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 4, marginTop: 16 }}>
-          <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>Prev</button>
-          <span style={{ padding: '4px 12px', fontSize: 13, color: '#64748b' }}>Page {page} of {totalPages}</span>
-          <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>Next</button>
+        <div className="pagination">
+          <button className="btn btn-secondary btn-sm" disabled={page <= 1} onClick={() => onPageChange(page - 1)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+            Prev
+          </button>
+          <span className="pagination-info">Page {page} of {totalPages}</span>
+          <button className="btn btn-secondary btn-sm" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)}>
+            Next
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
         </div>
       )}
     </div>

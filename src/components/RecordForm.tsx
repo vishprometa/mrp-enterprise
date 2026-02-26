@@ -38,31 +38,69 @@ export function RecordForm({ fields, initialValues = {}, onSubmit, onCancel, sub
 
   return (
     <form onSubmit={handleSubmit}>
-      {error && <div style={{ padding: '8px 12px', background: '#fee2e2', color: '#991b1b', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>{error}</div>}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+      {error && <div className="form-error">{error}</div>}
+      <div className="form-grid">
         {fields.map((f) => (
-          <div key={f.name} style={f.type === 'textarea' ? { gridColumn: 'span 2' } : undefined}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4, color: '#475569' }}>
-              {f.label}{f.required && <span style={{ color: '#ef4444' }}> *</span>}
+          <div key={f.name} className={f.type === 'textarea' ? 'full-width' : undefined}>
+            <label className="field-label">
+              {f.label}{f.required && <span style={{ color: 'var(--danger)' }}> *</span>}
             </label>
             {f.type === 'select' ? (
-              <select className="input" value={values[f.name] ?? ''} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} required={f.required}>
+              <select
+                className="input"
+                value={values[f.name] ?? ''}
+                onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}
+                required={f.required}
+              >
                 <option value="">Select...</option>
                 {f.options?.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             ) : f.type === 'textarea' ? (
-              <textarea className="input" rows={3} value={values[f.name] ?? ''} onChange={(e) => setValues({ ...values, [f.name]: e.target.value })} />
+              <textarea
+                className="input"
+                rows={3}
+                value={values[f.name] ?? ''}
+                onChange={(e) => setValues({ ...values, [f.name]: e.target.value })}
+                placeholder={`Enter ${f.label.toLowerCase()}...`}
+              />
             ) : f.type === 'checkbox' ? (
-              <input type="checkbox" checked={!!values[f.name]} onChange={(e) => setValues({ ...values, [f.name]: e.target.checked })} />
+              <div style={{ paddingTop: 4 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={!!values[f.name]}
+                    onChange={(e) => setValues({ ...values, [f.name]: e.target.checked })}
+                    style={{ width: 18, height: 18, accentColor: 'var(--primary)', cursor: 'pointer' }}
+                  />
+                  <span style={{ fontSize: 14, color: 'var(--text-secondary)' }}>Enabled</span>
+                </label>
+              </div>
             ) : (
-              <input className="input" type={f.type} value={values[f.name] ?? ''} onChange={(e) => setValues({ ...values, [f.name]: f.type === 'number' ? (e.target.value ? Number(e.target.value) : '') : e.target.value })} required={f.required} />
+              <input
+                className="input"
+                type={f.type}
+                value={values[f.name] ?? ''}
+                onChange={(e) => setValues({
+                  ...values,
+                  [f.name]: f.type === 'number' ? (e.target.value ? Number(e.target.value) : '') : e.target.value,
+                })}
+                required={f.required}
+                placeholder={`Enter ${f.label.toLowerCase()}...`}
+              />
             )}
           </div>
         ))}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+      <div className="form-actions">
         <button type="button" className="btn btn-secondary" onClick={onCancel}>Cancel</button>
-        <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : submitLabel}</button>
+        <button type="submit" className="btn btn-primary" disabled={saving}>
+          {saving ? (
+            <>
+              <span className="spinner" style={{ width: 14, height: 14, borderWidth: 2 }} />
+              Saving...
+            </>
+          ) : submitLabel}
+        </button>
       </div>
     </form>
   );

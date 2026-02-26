@@ -6,7 +6,6 @@ import { TABLES } from '@/lib/tables'
 
 const columns = [
   { key: 'Code', label: 'Code' },
-  { key: 'Name', label: 'Name' },
   { key: 'Department', label: 'Department' },
   { key: 'Budget', label: 'Budget' },
   { key: 'Actual Cost', label: 'Actual Cost' },
@@ -15,19 +14,14 @@ const columns = [
 ]
 
 const formFields = [
-  { name: 'Code', label: 'Code', type: 'text', required: true },
-  { name: 'Name', label: 'Name', type: 'text', required: true },
-  { name: 'Department', label: 'Department', type: 'text' },
-  { name: 'Budget', label: 'Budget', type: 'number' },
-  { name: 'Actual Cost', label: 'Actual Cost', type: 'number' },
-  { name: 'Variance', label: 'Variance', type: 'number' },
-  { name: 'Manager', label: 'Manager', type: 'text' },
-  {
-    name: 'Status',
-    label: 'Status',
-    type: 'select',
-    options: ['Active', 'Inactive'],
-  },
+  { name: 'Code', label: 'Code', type: 'text' as const, required: true },
+  { name: 'Description', label: 'Description', type: 'textarea' as const },
+  { name: 'Department', label: 'Department', type: 'text' as const },
+  { name: 'Budget', label: 'Budget', type: 'number' as const },
+  { name: 'Actual Cost', label: 'Actual Cost', type: 'number' as const },
+  { name: 'Variance', label: 'Variance', type: 'number' as const },
+  { name: 'Status', label: 'Status', type: 'select' as const, options: ['Active', 'Inactive', 'Under Review'] },
+  { name: 'Notes', label: 'Notes', type: 'textarea' as const },
 ]
 
 export default function CostCentersPage() {

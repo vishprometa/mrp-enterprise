@@ -1,27 +1,27 @@
 'use client'
 
 import { CrudPage } from '@/components/CrudPage'
+import { StatusBadge } from '@/components/StatusBadge'
 import { TABLES } from '@/lib/tables'
 
 const columns = [
-  { key: 'Code', label: 'Code' },
-  { key: 'Name', label: 'Name' },
-  { key: 'Category', label: 'Category' },
-  { key: 'Conversion Factor', label: 'Conversion Factor' },
+  { key: 'Symbol', label: 'Symbol' },
+  { key: 'Category', label: 'Category', render: (v: any) => <StatusBadge value={v} /> },
   { key: 'Base Unit', label: 'Base Unit' },
+  { key: 'Conversion Factor', label: 'Conversion Factor' },
 ]
 
 const formFields = [
-  { name: 'Code', label: 'Code', type: 'text', required: true },
-  { name: 'Name', label: 'Name', type: 'text', required: true },
+  { name: 'Symbol', label: 'Symbol', type: 'text', required: true },
   {
     name: 'Category',
     label: 'Category',
     type: 'select',
-    options: ['Weight', 'Length', 'Volume', 'Count', 'Time'],
+    options: ['Weight', 'Length', 'Volume', 'Count', 'Time', 'Area'],
   },
-  { name: 'Conversion Factor', label: 'Conversion Factor', type: 'number' },
   { name: 'Base Unit', label: 'Base Unit', type: 'text' },
+  { name: 'Conversion Factor', label: 'Conversion Factor', type: 'number' },
+  { name: 'Notes', label: 'Notes', type: 'textarea' },
 ]
 
 export default function UomPage() {
