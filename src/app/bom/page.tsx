@@ -3,6 +3,10 @@ import { TABLES } from '@/lib/tables';
 import { BOMClient } from './BOMClient';
 
 export default async function BOMPage() {
-  const data = await fetchAllRecords(TABLES.BILL_OF_MATERIALS).catch(() => []);
-  return <BOMClient data={data} />;
+  const [boms, bomLines, items] = await Promise.all([
+    fetchAllRecords(TABLES.BILL_OF_MATERIALS).catch(() => []),
+    fetchAllRecords(TABLES.BOM_LINES).catch(() => []),
+    fetchAllRecords(TABLES.ITEMS).catch(() => []),
+  ]);
+  return <BOMClient boms={boms} bomLines={bomLines} items={items} />;
 }

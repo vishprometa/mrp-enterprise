@@ -3,6 +3,10 @@ import { TABLES } from '@/lib/tables';
 import { ForecastsClient } from './ForecastsClient';
 
 export default async function ForecastsPage() {
-  const data = await fetchAllRecords(TABLES.DEMAND_FORECASTS).catch(() => []);
-  return <ForecastsClient data={data} />;
+  const [forecasts, items, salesOrders] = await Promise.all([
+    fetchAllRecords(TABLES.DEMAND_FORECASTS).catch(() => []),
+    fetchAllRecords(TABLES.ITEMS).catch(() => []),
+    fetchAllRecords(TABLES.SALES_ORDERS).catch(() => []),
+  ]);
+  return <ForecastsClient forecasts={forecasts} items={items} salesOrders={salesOrders} />;
 }

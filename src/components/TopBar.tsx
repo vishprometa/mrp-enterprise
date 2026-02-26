@@ -43,180 +43,70 @@ interface TopBarProps {
 export default function TopBar({ onOpenAI }: TopBarProps) {
   const pathname = usePathname();
   const { theme, toggle: toggleTheme } = useTheme();
-
   const meta = PAGE_META[pathname] || { title: 'Page', category: 'App' };
 
   return (
-    <div
-      style={{
-        height: 52,
-        minHeight: 52,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 24px',
-        borderBottom: '1px solid var(--border)',
-        backgroundColor: 'var(--bg-card)',
-        gap: 16,
-      }}
-    >
-      {/* Left: Breadcrumb + Title */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-        <nav
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            fontSize: 13,
-            color: 'var(--text-muted)',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <span style={{ color: 'var(--text-dim)' }}>Home</span>
-          <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>/</span>
-          <span style={{ color: 'var(--text-dim)' }}>{meta.category}</span>
-          <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>/</span>
-          <span style={{ color: 'var(--text)', fontWeight: 600 }}>{meta.title}</span>
+    <div className="top-bar">
+      <div className="top-bar-section">
+        <nav className="top-bar-breadcrumb">
+          <span>Home</span>
+          <span className="separator">/</span>
+          <span>{meta.category}</span>
+          <span className="separator">/</span>
+          <span className="current">{meta.title}</span>
         </nav>
       </div>
 
-      {/* Right: Search, Theme, AI, Notifications */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        {/* Search */}
-        <div style={{ position: 'relative' }}>
-          <svg
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="var(--text-dim)"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}
-          >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+      <div className="top-bar-actions">
+        {/* Search trigger */}
+        <button className="top-bar-search" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <input
-            type="text"
-            placeholder="Search..."
-            style={{
-              height: 32,
-              width: 200,
-              paddingLeft: 32,
-              paddingRight: 12,
-              fontSize: 13,
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              backgroundColor: 'var(--bg-input)',
-              color: 'var(--text)',
-              outline: 'none',
-            }}
-          />
-        </div>
+          <span>Search...</span>
+          <kbd>⌘K</kbd>
+        </button>
 
-        {/* Theme Toggle */}
+        {/* Theme toggle */}
         <button
+          className="top-bar-icon-btn"
           onClick={toggleTheme}
-          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          style={{
-            width: 32,
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            backgroundColor: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            flexShrink: 0,
-          }}
+          title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
         >
           {theme === 'dark' ? (
-            /* Sun icon */
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="5" />
-              <line x1="12" y1="1" x2="12" y2="3" />
-              <line x1="12" y1="21" x2="12" y2="23" />
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-              <line x1="1" y1="12" x2="3" y2="12" />
-              <line x1="21" y1="12" x2="23" y2="12" />
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+              <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+              <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
             </svg>
           ) : (
-            /* Moon icon */
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
             </svg>
           )}
         </button>
 
-        {/* Ask AI Button */}
-        <button
-          onClick={onOpenAI}
-          style={{
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '0 12px',
-            fontSize: 13,
-            fontWeight: 500,
-            border: 'none',
-            borderRadius: 6,
-            backgroundColor: 'var(--primary)',
-            color: '#fff',
-            cursor: 'pointer',
-            whiteSpace: 'nowrap',
-            flexShrink: 0,
-          }}
-        >
-          {/* Sparkle icon */}
+        {/* Ask AI button */}
+        <button className="top-bar-ai-btn" onClick={onOpenAI}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 2l2.09 6.26L20 10l-5.91 1.74L12 18l-2.09-6.26L4 10l5.91-1.74L12 2z" />
           </svg>
           Ask AI
         </button>
 
-        {/* Notification Bell */}
-        <button
-          title="Notifications"
-          style={{
-            width: 32,
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '1px solid var(--border)',
-            borderRadius: 6,
-            backgroundColor: 'transparent',
-            color: 'var(--text-muted)',
-            cursor: 'pointer',
-            position: 'relative',
-            flexShrink: 0,
-          }}
-        >
+        {/* Notifications */}
+        <button className="top-bar-icon-btn" title="Notifications">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
-          {/* Decorative dot */}
-          <span
-            style={{
-              position: 'absolute',
-              top: 6,
-              right: 6,
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              backgroundColor: '#ef4444',
-            }}
-          />
+          <span className="notification-dot" />
         </button>
+
+        {/* Avatar */}
+        <div className="top-bar-avatar">VM</div>
       </div>
     </div>
   );
