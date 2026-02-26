@@ -1,76 +1,58 @@
 'use server';
 
-import { getErpAI } from './erpai';
+import {
+  listRecords,
+  getRecord,
+  createRecordApi,
+  updateRecordApi,
+  deleteRecordApi,
+  countRecordsApi,
+  listAllRecords,
+} from './erpai';
 import type { TableName } from './tables';
 
 export async function fetchRecords(tableName: TableName, page = 1, pageSize = 50, search?: string) {
-  const app = getErpAI();
-  const table = app.table(tableName);
-  return table.list({ page, pageSize, search });
+  return listRecords(tableName, page, pageSize, search);
 }
 
 export async function fetchRecord(tableName: TableName, id: string) {
-  const app = getErpAI();
-  const table = app.table(tableName);
-  return table.get(id);
+  return getRecord(tableName, id);
 }
 
 export async function createRecord(tableName: TableName, data: Record<string, unknown>) {
-  const app = getErpAI();
-  const table = app.table(tableName);
-  return table.create(data);
+  return createRecordApi(tableName, data as Record<string, any>);
 }
 
 export async function updateRecord(tableName: TableName, id: string, data: Record<string, unknown>) {
-  const app = getErpAI();
-  const table = app.table(tableName);
-  return table.update(id, data);
+  return updateRecordApi(tableName, id, data as Record<string, any>);
 }
 
 export async function deleteRecord(tableName: TableName, id: string) {
-  const app = getErpAI();
-  const table = app.table(tableName);
-  await table.delete(id);
+  return deleteRecordApi(tableName, id);
 }
 
 export async function fetchAllRecords(tableName: TableName) {
-  const app = getErpAI();
-  const table = app.table(tableName);
-  const all: Record<string, unknown>[] = [];
-  for await (const page of table.listPages({ pageSize: 100 })) {
-    all.push(...page.data);
-  }
-  return all;
-}
-
-export async function getTableSchema(tableName: TableName) {
-  const app = getErpAI();
-  const table = app.table(tableName);
-  return table.getSchema();
-}
-
-export async function fetchRecordsWithFilter(tableName: TableName, filter: Record<string, any>, page = 1, pageSize = 50) {
-  const app = getErpAI();
-  const table = app.table(tableName);
-  return table.list({ filter: filter as any, page, pageSize });
+  return listAllRecords(tableName);
 }
 
 export async function countRecords(tableName: TableName) {
-  const app = getErpAI();
-  const table = app.table(tableName);
-  return table.count();
+  return countRecordsApi(tableName);
 }
 
 // Fetch multiple table counts for dashboard
 export async function fetchDashboardStats() {
-  const app = getErpAI();
-  const tables = ['Items', 'Purchase Orders', 'Sales Orders', 'Production Orders', 'Inventory', 'Suppliers', 'Customers', 'Quality Inspections'] as const;
+  const tables = [
+    'Items', 'Purchase Orders', 'Sales Orders', 'Production Orders',
+    'Inventory', 'Suppliers', 'Customers', 'Quality Inspections',
+  ] as const;
+
   const results = await Promise.allSettled(
     tables.map(async (t) => {
-      const count = await app.table(t).count();
+      const count = await countRecordsApi(t);
       return { table: t, count };
     })
   );
+
   const stats: Record<string, number> = {};
   for (const r of results) {
     if (r.status === 'fulfilled') stats[r.value.table] = r.value.count;

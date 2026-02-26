@@ -9,7 +9,6 @@
     "start": "next start"
   },
   "dependencies": {
-    "@erp-ai/sdk": "file:erp-ai-sdk-0.2.0.tgz",
     "@tailwindcss/postcss": "^4.2.1",
     "@types/node": "^25.3.1",
     "@types/react": "^19.2.14",
