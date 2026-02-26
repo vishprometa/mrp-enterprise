@@ -5,628 +5,290 @@ import { useState, useMemo } from 'react';
 /* ─────────────────────────────────────────────
    Types
    ───────────────────────────────────────────── */
-type Severity = 'Info' | 'Warning' | 'Error' | 'Critical';
 
-interface AuditRecord {
+interface Props {
+  stats: Record<string, number>;
+  purchaseOrders: any[];
+  salesOrders: any[];
+  productionOrders: any[];
+  qualityInspections: any[];
+  inventoryTransactions: any[];
+}
+
+interface ActivityEntry {
   id: string;
   timestamp: string;
-  user: string;
-  action: string;
-  actionClass: string;
-  page: string;
-  device: string;
-  severity: Severity;
-  system: string;
+  sortKey: number;
+  module: string;
+  moduleColor: string;
+  reference: string;
+  status: string;
+  detail: string;
 }
 
+const MODULE_COLORS: Record<string, string> = {
+  'Purchasing': '#8b5cf6',
+  'Sales': '#10b981',
+  'Production': '#f59e0b',
+  'Quality': '#06b6d4',
+  'Inventory': '#ec4899',
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  'Draft': '#64748b',
+  'Planned': '#f59e0b',
+  'Pending': '#f59e0b',
+  'Active': '#10b981',
+  'Approved': '#10b981',
+  'Released': '#3b82f6',
+  'In Progress': '#3b82f6',
+  'In Production': '#3b82f6',
+  'Completed': '#6366f1',
+  'Passed': '#10b981',
+  'Failed': '#ef4444',
+  'Cancelled': '#ef4444',
+  'Received': '#10b981',
+  'Shipped': '#06b6d4',
+};
+
 /* ─────────────────────────────────────────────
-   Mock Data Generators
+   Helpers
    ───────────────────────────────────────────── */
-const USERS = [
-  'registrar.lee',
-  'student.worker',
-  'sarah.finance',
-  'librarian.patel',
-  'prof.smith',
-  'admin.jones',
-  'dean.martinez',
-  'it.support',
-  'hr.wilson',
-  'campus.ops',
-  'grad.chen',
-  'facilities.mgr',
-];
 
-const ACTIONS: { label: string; cssClass: string }[] = [
-  { label: 'Page View', cssClass: 'page-view' },
-  { label: 'Login', cssClass: 'login' },
-  { label: '2FA Verified', cssClass: 'tfa-verified' },
-  { label: 'Session Refresh', cssClass: 'session-refresh' },
-  { label: 'Form Submit', cssClass: 'form-submit' },
-  { label: 'Search', cssClass: 'search' },
-  { label: 'Logout', cssClass: 'logout' },
-  { label: 'Create', cssClass: 'create' },
-  { label: 'Update', cssClass: 'update' },
-  { label: 'Delete', cssClass: 'delete' },
-];
+function resolveStatus(val: any): string {
+  if (Array.isArray(val)) return val[0] || 'Unknown';
+  return String(val ?? 'Unknown');
+}
 
-const PAGES = [
-  '/courses',
-  '/grades',
-  '/settings',
-  '/reports',
-  '/admin/audit',
-  '/dashboard',
-  '/departments',
-  '/students',
-  '/library/catalog',
-  '/finance/ledger',
-  '/hr/payroll',
-  '/registrar/enrollment',
-];
-
-const DEVICES = [
-  'Firefox 123 / Windows',
-  'Safari 17 / macOS',
-  'Chrome 122 / Android',
-  'Edge 122 / Windows',
-  'Chrome 122 / macOS',
-  'Safari 17 / iOS',
-  'Firefox 123 / Linux',
-  'Chrome 122 / Windows',
-];
-
-const SYSTEMS = ['SIS', 'CRM', 'IAM', 'FIS', 'RIS', 'Integration Hub'];
-
-const SEVERITIES: Severity[] = ['Info', 'Info', 'Info', 'Info', 'Info', 'Warning', 'Warning', 'Error', 'Critical'];
-
-function seededRandom(seed: number) {
-  let s = seed;
-  return () => {
-    s = (s * 16807 + 0) % 2147483647;
-    return (s - 1) / 2147483646;
+function parseDate(val: any): { display: string; sortKey: number } {
+  if (!val) return { display: '\u2014', sortKey: 0 };
+  const d = new Date(val);
+  if (isNaN(d.getTime())) return { display: String(val), sortKey: 0 };
+  return {
+    display: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+    sortKey: d.getTime(),
   };
-}
-
-function generateAuditRecords(count: number): AuditRecord[] {
-  const rand = seededRandom(42);
-  const records: AuditRecord[] = [];
-  const baseDate = new Date(2026, 1, 25, 23, 59, 59);
-
-  for (let i = 0; i < count; i++) {
-    const action = ACTIONS[Math.floor(rand() * ACTIONS.length)];
-    const offsetMinutes = Math.floor(rand() * 60 * 24 * 3);
-    const ts = new Date(baseDate.getTime() - offsetMinutes * 60000);
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const timestamp = `${pad(ts.getMonth() + 1)}/${pad(ts.getDate())}/${ts.getFullYear()}, ${pad(ts.getHours())}:${pad(ts.getMinutes())}:${pad(ts.getSeconds())}`;
-
-    records.push({
-      id: `USR-${String(i + 1).padStart(5, '0')}`,
-      timestamp,
-      user: USERS[Math.floor(rand() * USERS.length)],
-      action: action.label,
-      actionClass: action.cssClass,
-      page: PAGES[Math.floor(rand() * PAGES.length)],
-      device: DEVICES[Math.floor(rand() * DEVICES.length)],
-      severity: SEVERITIES[Math.floor(rand() * SEVERITIES.length)],
-      system: SYSTEMS[Math.floor(rand() * SYSTEMS.length)],
-    });
-  }
-  return records;
-}
-
-function generateHeatmapData(): number[][] {
-  const rand = seededRandom(99);
-  return Array.from({ length: 7 }, () =>
-    Array.from({ length: 24 }, () => Math.floor(rand() * 14))
-  );
-}
-
-/* ─────────────────────────────────────────────
-   Sparkline SVG
-   ───────────────────────────────────────────── */
-function Sparkline({ data, color, width = 90, height = 32 }: { data: number[]; color: string; width?: number; height?: number }) {
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const range = max - min || 1;
-  const points = data
-    .map((v, i) => {
-      const x = (i / (data.length - 1)) * width;
-      const y = height - ((v - min) / range) * (height - 4) - 2;
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  return (
-    <svg width={width} height={height} className="kpi-sparkline">
-      <polyline
-        points={points}
-        fill="none"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
-
-/* ─────────────────────────────────────────────
-   Constants
-   ───────────────────────────────────────────── */
-const TABS = [
-  { label: 'User Activity', count: 90 },
-  { label: 'Agent Activity', count: 88 },
-  { label: 'API Requests', count: 100 },
-  { label: 'CRUD Operations', count: 80 },
-  { label: 'Field Changes', count: 70 },
-  { label: 'App Versions', count: 8 },
-];
-
-const SEVERITY_FILTERS: Severity[] = ['Info', 'Warning', 'Error', 'Critical'];
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const ALL_RECORDS = generateAuditRecords(90);
-const HEATMAP = generateHeatmapData();
-const PAGE_SIZE = 25;
-
-/* ─────────────────────────────────────────────
-   Heatmap color
-   ───────────────────────────────────────────── */
-function heatmapColor(value: number): string {
-  if (value === 0) return '#1a1a2e';
-  if (value <= 2) return '#065f46';
-  if (value <= 4) return '#059669';
-  if (value <= 7) return '#10b981';
-  if (value <= 10) return '#34d399';
-  return '#dc2626';
-}
-
-/* ─────────────────────────────────────────────
-   Severity badge class
-   ───────────────────────────────────────────── */
-function severityBadgeClass(s: Severity): string {
-  switch (s) {
-    case 'Info':
-      return 'badge badge-info';
-    case 'Warning':
-      return 'badge badge-draft';
-    case 'Error':
-      return 'badge badge-danger';
-    case 'Critical':
-      return 'badge badge-danger';
-    default:
-      return 'badge';
-  }
 }
 
 /* ═════════════════════════════════════════════
    Component
    ═════════════════════════════════════════════ */
-export function AuditClient() {
-  const [activeTab, setActiveTab] = useState(0);
-  const [activeFilters, setActiveFilters] = useState<Set<Severity>>(new Set());
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  const [systemFilter, setSystemFilter] = useState('All');
+
+export function AuditClient({ stats, purchaseOrders, salesOrders, productionOrders, qualityInspections, inventoryTransactions }: Props) {
+  const [moduleFilter, setModuleFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  /* ── Filtered records ── */
-  const filteredRecords = useMemo(() => {
-    let result = ALL_RECORDS;
+  // Build activity entries from real data
+  const allActivity = useMemo(() => {
+    const entries: ActivityEntry[] = [];
 
-    if (activeFilters.size > 0) {
-      result = result.filter((r) => activeFilters.has(r.severity));
+    for (const po of purchaseOrders) {
+      const d = parseDate(po['Order Date']);
+      entries.push({
+        id: po.id || `po-${entries.length}`,
+        timestamp: d.display,
+        sortKey: d.sortKey,
+        module: 'Purchasing',
+        moduleColor: MODULE_COLORS['Purchasing'],
+        reference: po['PO Number'] || '\u2014',
+        status: resolveStatus(po['Status']),
+        detail: `Amount: $${Number(po['Total Amount'] || 0).toLocaleString()} | Priority: ${resolveStatus(po['Priority'])}`,
+      });
     }
 
-    if (systemFilter !== 'All') {
-      result = result.filter((r) => r.system === systemFilter);
+    for (const so of salesOrders) {
+      const d = parseDate(so['Order Date']);
+      entries.push({
+        id: so.id || `so-${entries.length}`,
+        timestamp: d.display,
+        sortKey: d.sortKey,
+        module: 'Sales',
+        moduleColor: MODULE_COLORS['Sales'],
+        reference: so['SO Number'] || '\u2014',
+        status: resolveStatus(so['Status']),
+        detail: `Amount: $${Number(so['Total Amount'] || 0).toLocaleString()} | Shipping: ${resolveStatus(so['Shipping Method'])}`,
+      });
     }
 
+    for (const wo of productionOrders) {
+      const d = parseDate(wo['Start Date']);
+      entries.push({
+        id: wo.id || `wo-${entries.length}`,
+        timestamp: d.display,
+        sortKey: d.sortKey,
+        module: 'Production',
+        moduleColor: MODULE_COLORS['Production'],
+        reference: wo['WO Number'] || '\u2014',
+        status: resolveStatus(wo['Status']),
+        detail: `Planned: ${wo['Planned Qty'] || 0} | Completed: ${wo['Completed Qty'] || 0} | Scrap: ${wo['Scrap Qty'] || 0}`,
+      });
+    }
+
+    for (const insp of qualityInspections) {
+      const d = parseDate(insp['Inspection Date']);
+      entries.push({
+        id: insp.id || `qi-${entries.length}`,
+        timestamp: d.display,
+        sortKey: d.sortKey,
+        module: 'Quality',
+        moduleColor: MODULE_COLORS['Quality'],
+        reference: `Score: ${insp['Overall Score'] ?? '\u2014'}`,
+        status: resolveStatus(insp['Status']),
+        detail: `Type: ${resolveStatus(insp['Type'])} | Inspector: ${insp['Inspector'] || '\u2014'}`,
+      });
+    }
+
+    for (const tx of inventoryTransactions) {
+      const d = parseDate(tx['Transaction Date']);
+      entries.push({
+        id: tx.id || `tx-${entries.length}`,
+        timestamp: d.display,
+        sortKey: d.sortKey,
+        module: 'Inventory',
+        moduleColor: MODULE_COLORS['Inventory'],
+        reference: tx['Reference Number'] || '\u2014',
+        status: resolveStatus(tx['Type']),
+        detail: `Qty: ${tx['Quantity'] || 0} | Cost: $${Number(tx['Total Cost'] || 0).toLocaleString()}`,
+      });
+    }
+
+    return entries.sort((a, b) => b.sortKey - a.sortKey);
+  }, [purchaseOrders, salesOrders, productionOrders, qualityInspections, inventoryTransactions]);
+
+  const modules = useMemo(() => ['All', ...Object.keys(MODULE_COLORS)], []);
+  const statuses = useMemo(() => {
+    const set = new Set(allActivity.map(a => a.status));
+    return ['All', ...Array.from(set).sort()];
+  }, [allActivity]);
+
+  const filtered = useMemo(() => {
+    let result = allActivity;
+    if (moduleFilter !== 'All') result = result.filter(a => a.module === moduleFilter);
+    if (statusFilter !== 'All') result = result.filter(a => a.status === statusFilter);
     if (searchQuery.trim()) {
-      try {
-        const regex = new RegExp(searchQuery.trim(), 'i');
-        result = result.filter(
-          (r) =>
-            regex.test(r.id) ||
-            regex.test(r.user) ||
-            regex.test(r.action) ||
-            regex.test(r.page) ||
-            regex.test(r.device) ||
-            regex.test(r.system) ||
-            regex.test(r.severity)
-        );
-      } catch {
-        const q = searchQuery.trim().toLowerCase();
-        result = result.filter(
-          (r) =>
-            r.id.toLowerCase().includes(q) ||
-            r.user.toLowerCase().includes(q) ||
-            r.action.toLowerCase().includes(q) ||
-            r.page.toLowerCase().includes(q) ||
-            r.device.toLowerCase().includes(q) ||
-            r.system.toLowerCase().includes(q) ||
-            r.severity.toLowerCase().includes(q)
-        );
-      }
+      const q = searchQuery.toLowerCase();
+      result = result.filter(a =>
+        a.reference.toLowerCase().includes(q) ||
+        a.module.toLowerCase().includes(q) ||
+        a.status.toLowerCase().includes(q) ||
+        a.detail.toLowerCase().includes(q) ||
+        a.timestamp.toLowerCase().includes(q)
+      );
     }
-
     return result;
-  }, [activeFilters, searchQuery, systemFilter]);
+  }, [allActivity, moduleFilter, statusFilter, searchQuery]);
 
-  const pagedRecords = filteredRecords.slice(0, PAGE_SIZE);
-  const totalFiltered = filteredRecords.length;
+  const moduleCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const a of allActivity) counts[a.module] = (counts[a.module] || 0) + 1;
+    return counts;
+  }, [allActivity]);
 
-  /* ── Toggle helpers ── */
-  function toggleFilter(sev: Severity) {
-    setActiveFilters((prev) => {
-      const next = new Set(prev);
-      if (next.has(sev)) next.delete(sev);
-      else next.add(sev);
-      return next;
-    });
-  }
+  const totalRecords = allActivity.length;
 
-  function toggleRow(id: string) {
-    setSelectedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function selectAll() {
-    if (selectedRows.size === pagedRecords.length) {
-      setSelectedRows(new Set());
-    } else {
-      setSelectedRows(new Set(pagedRecords.map((r) => r.id)));
-    }
-  }
-
-  /* ── Export stubs ── */
   function exportCSV() {
-    const header = 'ID,Timestamp,User,Action,Page,Device,Severity,System';
-    const rows = filteredRecords.map(
-      (r) => `${r.id},${r.timestamp},${r.user},${r.action},${r.page},${r.device},${r.severity},${r.system}`
-    );
+    const header = 'Timestamp,Module,Reference,Status,Detail';
+    const rows = filtered.map(a => `"${a.timestamp}","${a.module}","${a.reference}","${a.status}","${a.detail}"`);
     const blob = new Blob([header + '\n' + rows.join('\n')], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'audit-log.csv';
-    a.click();
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'activity-log.csv';
+    link.click();
     URL.revokeObjectURL(url);
   }
-
-  function exportJSON() {
-    const blob = new Blob([JSON.stringify(filteredRecords, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'audit-log.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  /* ── Sparkline data ── */
-  const sparkEvents = [28, 32, 26, 38, 45, 40, 35, 42, 48, 44, 39, 42];
-  const sparkUsers = [8, 9, 10, 11, 10, 12, 12, 11, 13, 12, 12, 12];
-  const sparkApi = [22, 28, 31, 30, 34, 36, 33, 38, 35, 37, 34, 35.7];
-  const sparkErrors = [3, 2, 5, 4, 3, 6, 2, 4, 5, 3, 4, 3];
 
   return (
     <>
-      {/* ── Page Header ── */}
+      {/* Header */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Audit Console</h1>
-          <p className="page-subtitle">Real-time activity monitoring and security event log</p>
+          <h1 className="page-title">Activity Log</h1>
+          <p className="page-subtitle">Real-time activity across all modules &mdash; {totalRecords} records from live API</p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="export-btn" onClick={exportCSV}>
             <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" />
             </svg>
-            CSV
-          </button>
-          <button className="export-btn" onClick={exportJSON}>
-            <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v12m0 0l-4-4m4 4l4-4M4 18h16" />
-            </svg>
-            JSON
+            Export CSV
           </button>
         </div>
       </div>
 
-      {/* ── KPI Cards ── */}
+      {/* KPI Cards */}
       <div className="kpi-grid">
         <div className="kpi-card">
-          <div className="kpi-label">Total Events</div>
-          <div className="kpi-value">420</div>
-          <div className="kpi-trend up">+12.3% vs last week</div>
-          <Sparkline data={sparkEvents} color="#10b981" />
+          <div className="kpi-label">Total Activity</div>
+          <div className="kpi-value">{totalRecords}</div>
+          <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Across all modules</div>
         </div>
-        <div className="kpi-card">
-          <div className="kpi-label">Active Users</div>
-          <div className="kpi-value">12</div>
-          <div className="kpi-trend up">+2 new this week</div>
-          <Sparkline data={sparkUsers} color="#6366f1" />
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label">API Req / Hour</div>
-          <div className="kpi-value">35.7</div>
-          <div className="kpi-trend neutral">Stable</div>
-          <Sparkline data={sparkApi} color="#f59e0b" />
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            Errors &amp; Critical
-            <span
-              style={{
-                width: 7,
-                height: 7,
-                borderRadius: '50%',
-                background: '#ef4444',
-                display: 'inline-block',
-                boxShadow: '0 0 6px #ef4444',
-              }}
-            />
+        {Object.entries(MODULE_COLORS).map(([mod, color]) => (
+          <div key={mod} className="kpi-card">
+            <div className="kpi-label">{mod}</div>
+            <div className="kpi-value" style={{ color }}>{moduleCounts[mod] || 0}</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>Records</div>
           </div>
-          <div className="kpi-value" style={{ color: '#f87171' }}>
-            23
-          </div>
-          <div className="kpi-trend down">+4 since yesterday</div>
-          <Sparkline data={sparkErrors} color="#ef4444" />
-        </div>
-      </div>
-
-      {/* ── Tabs ── */}
-      <div className="tabs-bar">
-        {TABS.map((tab, idx) => (
-          <button
-            key={tab.label}
-            className={`tab-btn${activeTab === idx ? ' active' : ''}`}
-            onClick={() => setActiveTab(idx)}
-          >
-            {tab.label}
-            <span className="tab-count">{tab.count}</span>
-          </button>
         ))}
       </div>
 
-      {/* ── Activity Heatmap ── */}
-      <div className="card" style={{ marginBottom: 20, padding: '18px 20px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, color: 'var(--text)' }}>
-            Activity Heatmap &mdash; 7 Day
-          </h3>
-          <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>Hourly event density</span>
-        </div>
-
-        {/* Hour labels header row */}
-        <div className="heatmap">
-          <div className="heatmap-row">
-            <span className="heatmap-label" />
-            {Array.from({ length: 24 }, (_, h) => (
-              <span key={h} className="heatmap-hour">
-                {String(h).padStart(2, '0')}
-              </span>
-            ))}
-          </div>
-
-          {DAYS.map((day, di) => (
-            <div key={day} className="heatmap-row">
-              <span className="heatmap-label">{day}</span>
-              {HEATMAP[di].map((val, hi) => (
-                <div
-                  key={hi}
-                  className="heatmap-cell"
-                  style={{ background: heatmapColor(val) }}
-                  title={`${day} ${String(hi).padStart(2, '0')}:00 — ${val} events`}
-                />
-              ))}
-            </div>
-          ))}
-        </div>
-
-        {/* Legend */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            marginTop: 10,
-            justifyContent: 'flex-end',
-          }}
-        >
-          <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>Less</span>
-          {['#1a1a2e', '#065f46', '#059669', '#10b981', '#34d399', '#dc2626'].map((c) => (
-            <div
-              key={c}
-              style={{
-                width: 14,
-                height: 14,
-                borderRadius: 3,
-                background: c,
-              }}
-            />
-          ))}
-          <span style={{ fontSize: 10, color: 'var(--text-dim)' }}>More</span>
-        </div>
-      </div>
-
-      {/* ── Filter Bar ── */}
+      {/* Filters */}
       <div className="filter-bar">
         <div className="search-bar" style={{ flex: '0 0 300px' }}>
           <span className="search-icon">&#128269;</span>
-          <input
-            className="input"
-            placeholder="Search logs... (regex supported)"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-          />
+          <input className="input" placeholder="Search activity..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
         </div>
-
-        {SEVERITY_FILTERS.map((sev) => (
-          <button
-            key={sev}
-            className={`filter-pill${activeFilters.has(sev) ? ' active' : ''}`}
-            onClick={() => toggleFilter(sev)}
-          >
-            {sev}
+        {modules.map((mod) => (
+          <button key={mod} className={`filter-pill${moduleFilter === mod ? ' active' : ''}`} onClick={() => setModuleFilter(mod)}>
+            {mod} {mod !== 'All' && <span style={{ opacity: 0.6 }}>({moduleCounts[mod] || 0})</span>}
           </button>
         ))}
-
-        <select
-          className="input"
-          style={{ width: 180, flex: 'none' }}
-          value={systemFilter}
-          onChange={(e) => setSystemFilter(e.target.value)}
-        >
-          <option value="All">SYSTEM: All Systems</option>
-          {SYSTEMS.map((s) => (
-            <option key={s} value={s}>
-              {s}
-            </option>
-          ))}
-        </select>
-
-        <select
-          className="input"
-          style={{ width: 150, flex: 'none' }}
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-        >
-          <option value="All">STATUS: All</option>
-          <option value="Active">Active</option>
-          <option value="Closed">Closed</option>
+        <select className="input" style={{ width: 180, flex: 'none' }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+          {statuses.map(s => <option key={s} value={s}>{s === 'All' ? 'STATUS: All' : s}</option>)}
         </select>
       </div>
 
-      {/* ── Results Count ── */}
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: 10,
-          padding: '0 4px',
-        }}
-      >
-        <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>
-          Showing 1-{Math.min(PAGE_SIZE, totalFiltered)} of {totalFiltered} results
-        </span>
-        <button
-          className="btn btn-ghost btn-sm"
-          onClick={selectAll}
-          style={{ fontSize: 12 }}
-        >
-          {selectedRows.size === pagedRecords.length && pagedRecords.length > 0
-            ? 'Deselect All'
-            : 'Select All'}
-        </button>
+      {/* Results Count */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, padding: '0 4px' }}>
+        <span style={{ fontSize: 12, color: 'var(--text-dim)' }}>Showing {Math.min(filtered.length, 50)} of {filtered.length} records</span>
       </div>
 
-      {/* ── Log Table ── */}
+      {/* Activity Table */}
       <div className="table-container">
         <table className="data-table">
           <thead>
             <tr>
-              <th style={{ width: 36 }}>
-                <input
-                  type="checkbox"
-                  checked={selectedRows.size === pagedRecords.length && pagedRecords.length > 0}
-                  onChange={selectAll}
-                  style={{ accentColor: '#6366f1' }}
-                />
-              </th>
-              <th>ID</th>
               <th>Timestamp</th>
-              <th>User</th>
-              <th>Action</th>
-              <th>Page / Resource</th>
-              <th>Device</th>
-              <th>Severity</th>
-              <th>System</th>
+              <th>Module</th>
+              <th>Reference</th>
+              <th>Status</th>
+              <th>Details</th>
             </tr>
           </thead>
           <tbody>
-            {pagedRecords.map((rec) => (
-              <tr key={rec.id}>
-                <td>
-                  <input
-                    type="checkbox"
-                    checked={selectedRows.has(rec.id)}
-                    onChange={() => toggleRow(rec.id)}
-                    style={{ accentColor: '#6366f1' }}
-                  />
-                </td>
-                <td>
-                  <span className="mono-text">{rec.id}</span>
-                </td>
-                <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--text-dim)' }}>
-                  {rec.timestamp}
-                </td>
-                <td style={{ fontWeight: 500, color: 'var(--text)' }}>{rec.user}</td>
-                <td>
-                  <span className={`audit-action ${rec.actionClass}`}>{rec.action}</span>
-                </td>
-                <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12 }}>{rec.page}</td>
-                <td style={{ fontSize: 12 }}>{rec.device}</td>
-                <td>
-                  <span className={severityBadgeClass(rec.severity)}>
-                    {rec.severity === 'Critical' ? (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <span
-                          style={{
-                            width: 6,
-                            height: 6,
-                            borderRadius: '50%',
-                            background: '#ef4444',
-                            display: 'inline-block',
-                            animation: 'pulse 1.5s infinite',
-                          }}
-                        />
-                        {rec.severity}
-                      </span>
-                    ) : (
-                      rec.severity
-                    )}
-                  </span>
-                </td>
-                <td>
-                  <span className="badge badge-purple" style={{ fontSize: 10 }}>
-                    {rec.system}
-                  </span>
-                </td>
-              </tr>
-            ))}
-
-            {pagedRecords.length === 0 && (
-              <tr>
-                <td colSpan={9} className="empty-state">
-                  No audit records match the current filters.
-                </td>
-              </tr>
+            {filtered.length === 0 ? (
+              <tr><td colSpan={5} className="empty-state">No activity records found.</td></tr>
+            ) : (
+              filtered.slice(0, 50).map((entry) => (
+                <tr key={entry.id}>
+                  <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: 'var(--text-dim)', whiteSpace: 'nowrap' }}>{entry.timestamp}</td>
+                  <td><span className="badge" style={{ background: `${entry.moduleColor}18`, color: entry.moduleColor }}>{entry.module}</span></td>
+                  <td style={{ fontWeight: 600, color: 'var(--text)' }}><span className="mono-text">{entry.reference}</span></td>
+                  <td><span className="badge" style={{ background: `${STATUS_COLORS[entry.status] || '#64748b'}18`, color: STATUS_COLORS[entry.status] || '#64748b' }}>{entry.status}</span></td>
+                  <td style={{ fontSize: 12, color: 'var(--text-secondary)', maxWidth: 400 }}>{entry.detail}</td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
       </div>
 
-      {/* ── Pagination hint ── */}
-      <div className="pagination" style={{ marginTop: 16 }}>
-        <span className="pagination-info">
-          Page 1 of {Math.ceil(totalFiltered / PAGE_SIZE)} &middot; {totalFiltered} total records
-        </span>
-      </div>
-
-      {/* ── Inline keyframes for pulse animation ── */}
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.3; }
-        }
-      `}</style>
+      {filtered.length > 50 && (
+        <div className="pagination" style={{ marginTop: 16 }}>
+          <span className="pagination-info">Showing first 50 of {filtered.length} records</span>
+        </div>
+      )}
     </>
   );
 }

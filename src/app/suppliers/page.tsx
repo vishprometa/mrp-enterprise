@@ -1,51 +1,8 @@
-'use client'
+import { fetchAllRecords } from '@/lib/actions';
+import { TABLES } from '@/lib/tables';
+import { SuppliersClient } from './SuppliersClient';
 
-import { CrudPage } from '@/components/CrudPage'
-import { StatusBadge } from '@/components/StatusBadge'
-import { TABLES } from '@/lib/tables'
-
-const columns = [
-  { key: 'Code', label: 'Code' },
-  { key: 'Contact Person', label: 'Contact Person' },
-  { key: 'Email', label: 'Email' },
-  { key: 'Phone', label: 'Phone' },
-  { key: 'Country', label: 'Country' },
-  { key: 'Rating Score', label: 'Rating Score' },
-  { key: 'Status', label: 'Status', render: (v: any) => <StatusBadge value={v} /> },
-]
-
-const formFields = [
-  { name: 'Code', label: 'Code', type: 'text', required: true },
-  { name: 'Contact Person', label: 'Contact Person', type: 'text', required: true },
-  { name: 'Email', label: 'Email', type: 'text' },
-  { name: 'Phone', label: 'Phone', type: 'text' },
-  { name: 'Address', label: 'Address', type: 'textarea' },
-  { name: 'City', label: 'City', type: 'text' },
-  { name: 'Country', label: 'Country', type: 'text' },
-  {
-    name: 'Payment Terms',
-    label: 'Payment Terms',
-    type: 'select',
-    options: ['Net 30', 'Net 45', 'Net 60', 'Immediate'],
-  },
-  { name: 'Default Lead Time', label: 'Default Lead Time', type: 'number' },
-  { name: 'Rating Score', label: 'Rating Score', type: 'number' },
-  {
-    name: 'Status',
-    label: 'Status',
-    type: 'select',
-    options: ['Active', 'Inactive', 'On Hold'],
-  },
-  { name: 'Tax ID', label: 'Tax ID', type: 'text' },
-  {
-    name: 'Currency',
-    label: 'Currency',
-    type: 'select',
-    options: ['USD', 'EUR', 'GBP', 'JPY'],
-  },
-  { name: 'Notes', label: 'Notes', type: 'textarea' },
-]
-
-export default function SuppliersPage() {
-  return <CrudPage tableName={TABLES.SUPPLIERS} title="Suppliers" columns={columns} formFields={formFields} />
+export default async function SuppliersPage() {
+  const suppliers = await fetchAllRecords(TABLES.SUPPLIERS).catch(() => []);
+  return <SuppliersClient suppliers={suppliers} />;
 }

@@ -312,3 +312,188 @@ textarea.input { resize: vertical; min-height: 72px; }
 .card-stat { display: flex; flex-direction: column; gap: 4px; }
 .card-stat .value { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }
 .card-stat .label { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+
+/* ═══════════════════════════════════════════════
+   CREATIVE LAYOUTS
+   ═══════════════════════════════════════════════ */
+
+/* ─── Product / Item Cards ──────────── */
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px; }
+.product-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 16px; transition: all var(--t-base); cursor: pointer; position: relative; overflow: hidden; }
+.product-card:hover { border-color: rgba(255,255,255,0.1); transform: translateY(-2px); box-shadow: var(--shadow-md); }
+.product-card .product-sku { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--primary); font-weight: 600; letter-spacing: 0.04em; }
+.product-card .product-name { font-size: 14px; font-weight: 600; color: var(--text); margin: 6px 0 8px; line-height: 1.3; }
+.product-card .product-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.product-card .product-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border-light); }
+.product-card .product-stat-value { font-size: 14px; font-weight: 700; color: var(--text); }
+.product-card .product-stat-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ─── Kanban Board ──────────────────── */
+.kanban-board { display: flex; gap: 14px; overflow-x: auto; padding-bottom: 8px; min-height: 400px; }
+.kanban-column { flex: 1; min-width: 240px; max-width: 320px; background: var(--bg-sunken); border-radius: var(--radius-lg); padding: 12px; display: flex; flex-direction: column; }
+.kanban-column-header { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); padding: 4px 6px 10px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--border); margin-bottom: 10px; }
+.kanban-column-count { font-size: 11px; font-weight: 700; color: var(--text-dim); background: var(--bg-elevated); padding: 2px 8px; border-radius: 100px; }
+.kanban-cards { flex: 1; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+.kanban-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px 14px; cursor: pointer; transition: all var(--t-fast); }
+.kanban-card:hover { border-color: rgba(255,255,255,0.12); background: var(--bg-card-hover); transform: translateY(-1px); }
+.kanban-card .card-id { font-family: 'JetBrains Mono', monospace; font-size: 11px; color: var(--primary); font-weight: 600; }
+.kanban-card .card-title { font-size: 13px; font-weight: 500; color: var(--text); margin: 4px 0 8px; }
+.kanban-card .card-footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-dim); }
+
+/* ─── Pipeline / Funnel ─────────────── */
+.pipeline { display: flex; gap: 3px; margin-bottom: 24px; }
+.pipeline-stage { flex: 1; text-align: center; padding: 14px 8px; background: var(--bg-card); border: 1px solid var(--border); position: relative; transition: all var(--t-fast); }
+.pipeline-stage:first-child { border-radius: var(--radius-lg) 0 0 var(--radius-lg); }
+.pipeline-stage:last-child { border-radius: 0 var(--radius-lg) var(--radius-lg) 0; }
+.pipeline-stage.active { background: var(--primary-glow); border-color: rgba(99,102,241,0.3); }
+.pipeline-stage:hover { background: var(--bg-card-hover); }
+.pipeline-count { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); line-height: 1; }
+.pipeline-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); margin-top: 4px; }
+.pipeline-value { font-size: 11px; font-weight: 500; color: var(--text-dim); margin-top: 2px; }
+
+/* ─── Scorecard Grid ────────────────── */
+.scorecard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+.scorecard { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px; transition: all var(--t-base); cursor: pointer; }
+.scorecard:hover { border-color: rgba(255,255,255,0.1); background: var(--bg-card-hover); }
+.scorecard-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+.scorecard-title { font-size: 15px; font-weight: 700; color: var(--text); }
+.scorecard-subtitle { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+.scorecard-body { display: flex; flex-direction: column; gap: 10px; }
+.scorecard-row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+.scorecard-row .label { color: var(--text-muted); }
+.scorecard-row .value { color: var(--text); font-weight: 600; }
+
+/* ─── Progress Bar ──────────────────── */
+.progress-bar { height: 6px; background: var(--bg-elevated); border-radius: 100px; overflow: hidden; width: 100%; }
+.progress-bar.lg { height: 8px; }
+.progress-bar-fill { height: 100%; border-radius: 100px; transition: width var(--t-slow); min-width: 2px; }
+.progress-bar-fill.green { background: linear-gradient(90deg, #059669, #10b981); }
+.progress-bar-fill.yellow { background: linear-gradient(90deg, #d97706, #f59e0b); }
+.progress-bar-fill.red { background: linear-gradient(90deg, #dc2626, #ef4444); }
+.progress-bar-fill.indigo { background: linear-gradient(90deg, #4f46e5, #6366f1); }
+.progress-bar-fill.blue { background: linear-gradient(90deg, #2563eb, #3b82f6); }
+
+/* ─── Alert Items ───────────────────── */
+.alert-list { display: flex; flex-direction: column; gap: 6px; }
+.alert-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); font-size: 13px; transition: background var(--t-fast); }
+.alert-item:hover { background: var(--bg-card-hover); }
+.alert-item.critical { border-left: 3px solid var(--danger); }
+.alert-item.warning { border-left: 3px solid var(--warning); }
+.alert-item.info { border-left: 3px solid var(--info); }
+.alert-item.success { border-left: 3px solid var(--success); }
+.alert-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.alert-dot.red { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+.alert-dot.yellow { background: var(--warning); box-shadow: 0 0 6px var(--warning); }
+.alert-dot.green { background: var(--success); }
+
+/* ─── View Toggle ───────────────────── */
+.view-toggle { display: inline-flex; gap: 0; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.view-toggle button { padding: 6px 14px; font-size: 12px; font-weight: 500; color: var(--text-muted); background: transparent; border: none; cursor: pointer; transition: all var(--t-fast); border-right: 1px solid var(--border); }
+.view-toggle button:last-child { border-right: none; }
+.view-toggle button.active { background: var(--primary-glow); color: var(--primary-hover); }
+.view-toggle button:hover:not(.active) { background: rgba(255,255,255,0.03); }
+
+/* ─── Tag / Chip ────────────────────── */
+.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500; background: var(--bg-elevated); color: var(--text-secondary); }
+
+/* ─── Stat Row (simple pages) ───────── */
+.stat-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-mini { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; }
+.stat-mini .value { font-size: 22px; font-weight: 800; color: var(--text); letter-spacing: -0.02em; }
+.stat-mini .label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-top: 2px; }
+
+/* ─── Metric inline ─────────────────── */
+.metric-row { display: flex; gap: 20px; align-items: center; }
+.metric { display: flex; flex-direction: column; }
+.metric .metric-value { font-size: 18px; font-weight: 700; color: var(--text); font-family: 'JetBrains Mono', monospace; }
+.metric .metric-label { font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+
+/* ─── Rating stars ──────────────────── */
+.rating-bar { display: flex; gap: 3px; align-items: center; }
+.rating-star { width: 14px; height: 14px; }
+.rating-star.filled { color: #f59e0b; }
+.rating-star.empty { color: var(--text-dim); opacity: 0.3; }
+
+/* ─── Grid layouts ──────────────────── */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+@media (max-width: 1200px) {
+  .grid-3 { grid-template-columns: 1fr 1fr; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
+  .kanban-board { flex-wrap: wrap; }
+  .pipeline { flex-wrap: wrap; }
+}
+@media (max-width: 768px) {
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .product-grid { grid-template-columns: 1fr; }
+  .scorecard-grid { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════
+   LIGHT MODE
+   ═══════════════════════════════════════════════ */
+
+[data-theme="light"] {
+  --bg-root: #f8fafc;
+  --bg-main: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-elevated: #f1f5f9;
+  --bg-sunken: #e2e8f0;
+  --bg-input: #ffffff;
+
+  --sidebar-bg: #ffffff;
+  --sidebar-hover: rgba(0,0,0,0.04);
+  --sidebar-active: rgba(99,102,241,0.08);
+
+  --text: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+
+  --border: rgba(0,0,0,0.08);
+  --border-light: rgba(0,0,0,0.04);
+  --border-focus: #6366f1;
+
+  --success-bg: rgba(16,185,129,0.08);
+  --warning-bg: rgba(245,158,11,0.08);
+  --danger-bg: rgba(239,68,68,0.08);
+  --info-bg: rgba(6,182,212,0.08);
+  --purple-bg: rgba(168,85,247,0.08);
+
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.1);
+  --shadow-glow: 0 0 20px rgba(99,102,241,0.06);
+
+  --primary-glow: rgba(99,102,241,0.1);
+  --accent-glow: rgba(249,115,22,0.08);
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb { background: #cbd5e1; }
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+[data-theme="light"] .sidebar-brand-text h1 { color: #1e293b; }
+[data-theme="light"] .sidebar-link.active { color: #4f46e5; }
+
+[data-theme="light"] .kpi-card:hover,
+[data-theme="light"] .stat-card:hover,
+[data-theme="light"] .product-card:hover,
+[data-theme="light"] .scorecard:hover,
+[data-theme="light"] .kanban-card:hover {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+[data-theme="light"] .modal-overlay { background: rgba(0,0,0,0.3); }
+
+[data-theme="light"] .btn-primary { box-shadow: 0 1px 4px rgba(99,102,241,0.2); }
+[data-theme="light"] .btn-secondary { background: #f1f5f9; color: #475569; border-color: rgba(0,0,0,0.1); }
+[data-theme="light"] .btn-secondary:hover:not(:disabled) { background: #e2e8f0; }
+
+[data-theme="light"] select.input { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%2394a3b8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); }
+
+/* Theme toggle button */
+.theme-toggle { display: flex; align-items: center; gap: 8px; padding: 8px 12px; margin: 8px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg-card); color: var(--text-muted); font-size: 12px; font-weight: 500; cursor: pointer; transition: all var(--t-fast); }
+.theme-toggle:hover { background: var(--bg-card-hover); color: var(--text-secondary); border-color: rgba(99,102,241,0.2); }
+.theme-toggle svg { width: 16px; height: 16px; }

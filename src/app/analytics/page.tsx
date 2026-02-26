@@ -3,7 +3,7 @@ import { TABLES } from '@/lib/tables';
 import { AnalyticsClient } from './AnalyticsClient';
 
 export default async function AnalyticsPage() {
-  const [stats, items, inventory, prodOrders, purchaseOrders, salesOrders, capacityPlans, costCenters] = await Promise.all([
+  const [stats, items, inventory, prodOrders, purchaseOrders, salesOrders, capacityPlans, costCenters, qualityInspections] = await Promise.all([
     fetchDashboardStats(),
     fetchAllRecords(TABLES.ITEMS).catch(() => []),
     fetchAllRecords(TABLES.INVENTORY).catch(() => []),
@@ -12,6 +12,19 @@ export default async function AnalyticsPage() {
     fetchAllRecords(TABLES.SALES_ORDERS).catch(() => []),
     fetchAllRecords(TABLES.CAPACITY_PLANS).catch(() => []),
     fetchAllRecords(TABLES.COST_CENTERS).catch(() => []),
+    fetchAllRecords(TABLES.QUALITY_INSPECTIONS).catch(() => []),
   ]);
-  return <AnalyticsClient stats={stats} items={items} inventory={inventory} prodOrders={prodOrders} purchaseOrders={purchaseOrders} salesOrders={salesOrders} capacityPlans={capacityPlans} costCenters={costCenters} />;
+  return (
+    <AnalyticsClient
+      stats={stats}
+      items={items}
+      inventory={inventory}
+      prodOrders={prodOrders}
+      purchaseOrders={purchaseOrders}
+      salesOrders={salesOrders}
+      capacityPlans={capacityPlans}
+      costCenters={costCenters}
+      qualityInspections={qualityInspections}
+    />
+  );
 }

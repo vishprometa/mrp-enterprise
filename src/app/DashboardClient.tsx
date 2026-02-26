@@ -4,8 +4,6 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { StatusBadge } from '@/components/StatusBadge';
 import {
-  AreaChart,
-  Area,
   PieChart,
   Pie,
   Cell,
@@ -36,10 +34,10 @@ interface Props {
    ═══════════════════════════════════════════ */
 
 const KPI_CARDS = [
-  { key: 'Items', label: 'Total Items', href: '/items', color: '#6366f1', trend: 12.4 },
-  { key: 'Purchase Orders', label: 'Purchase Orders', href: '/purchase-orders', color: '#8b5cf6', trend: 8.2 },
-  { key: 'Sales Orders', label: 'Sales Orders', href: '/sales-orders', color: '#10b981', trend: -3.1 },
-  { key: 'Production Orders', label: 'Production Orders', href: '/production-orders', color: '#f59e0b', trend: 5.7 },
+  { key: 'Items', label: 'Total Items', href: '/items', color: '#6366f1' },
+  { key: 'Purchase Orders', label: 'Purchase Orders', href: '/purchase-orders', color: '#8b5cf6' },
+  { key: 'Sales Orders', label: 'Sales Orders', href: '/sales-orders', color: '#10b981' },
+  { key: 'Production Orders', label: 'Production Orders', href: '/production-orders', color: '#f59e0b' },
 ];
 
 const PIE_COLORS: Record<string, string> = {
@@ -56,64 +54,18 @@ const PIE_COLORS: Record<string, string> = {
 
 const PIE_FALLBACK_COLORS = ['#6366f1', '#10b981', '#f59e0b', '#3b82f6', '#ef4444', '#06b6d4', '#a855f7', '#ec4899'];
 
-const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-
 const QUICK_ACTIONS = [
   { href: '/mrp', label: 'Run MRP Simulation', icon: 'M5 3l14 9-14 9V3z' },
   { href: '/items', label: 'Manage Items', icon: 'M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z' },
   { href: '/bom', label: 'Bill of Materials', icon: 'M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z' },
   { href: '/inventory', label: 'Check Inventory', icon: 'M20 7H4a2 2 0 00-2 2v10a2 2 0 002 2h16a2 2 0 002-2V9a2 2 0 00-2-2zM16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16' },
-  { href: '/forecasts', label: 'Demand Forecasts', icon: 'M22 12l-4 0-3 9-6-18-3 9-4 0' },
+  { href: '/bom-explosion', label: 'BOM Explosion', icon: 'M22 12l-4 0-3 9-6-18-3 9-4 0' },
   { href: '/production-orders', label: 'Production Orders', icon: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5' },
 ];
 
 /* ═══════════════════════════════════════════
    Helpers
    ═══════════════════════════════════════════ */
-
-function generateSparklineData(count: number): { v: number }[] {
-  const base = Math.max(count, 1);
-  const points: { v: number }[] = [];
-  for (let i = 0; i < 12; i++) {
-    const variance = base * (0.6 + Math.sin(i * 0.8 + count) * 0.25 + Math.cos(i * 1.3) * 0.15);
-    points.push({ v: Math.round(Math.max(0, variance)) });
-  }
-  return points;
-}
-
-function generateHeatmapData(): number[][] {
-  const data: number[][] = [];
-  for (let day = 0; day < 7; day++) {
-    const row: number[] = [];
-    for (let hour = 0; hour < 24; hour++) {
-      const isWorkHour = hour >= 8 && hour <= 18;
-      const isWeekday = day < 5;
-      let intensity = 0;
-      if (isWeekday && isWorkHour) {
-        intensity = Math.random() * 0.7 + 0.3;
-        if (hour >= 9 && hour <= 11) intensity = Math.random() * 0.3 + 0.7;
-        if (hour >= 14 && hour <= 16) intensity = Math.random() * 0.3 + 0.6;
-      } else if (isWeekday) {
-        intensity = Math.random() * 0.15;
-      } else {
-        intensity = Math.random() * 0.08;
-      }
-      row.push(intensity);
-    }
-    data.push(row);
-  }
-  return data;
-}
-
-function heatmapColor(intensity: number): string {
-  if (intensity < 0.05) return 'rgba(255,255,255,0.03)';
-  if (intensity < 0.15) return 'rgba(16,185,129,0.12)';
-  if (intensity < 0.3) return 'rgba(16,185,129,0.25)';
-  if (intensity < 0.5) return 'rgba(16,185,129,0.4)';
-  if (intensity < 0.7) return 'rgba(16,185,129,0.6)';
-  if (intensity < 0.85) return 'rgba(16,185,129,0.78)';
-  return '#10b981';
-}
 
 function countStatuses(orders: any[]): { name: string; value: number }[] {
   const counts: Record<string, number> = {};
@@ -133,20 +85,10 @@ function countStatuses(orders: any[]): { name: string; value: number }[] {
 function DarkTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div
-      style={{
-        background: '#1a2332',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 8,
-        padding: '8px 12px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-      }}
-    >
-      {label && (
-        <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{label}</div>
-      )}
+    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', boxShadow: 'var(--shadow-lg)' }}>
+      {label && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{label}</div>}
       {payload.map((entry: any, i: number) => (
-        <div key={i} style={{ fontSize: 13, fontWeight: 600, color: entry.color || '#f1f5f9' }}>
+        <div key={i} style={{ fontSize: 13, fontWeight: 600, color: entry.color || 'var(--text)' }}>
           {entry.name}: {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
         </div>
       ))}
@@ -158,16 +100,8 @@ function PieTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
   const entry = payload[0];
   return (
-    <div
-      style={{
-        background: '#1a2332',
-        border: '1px solid rgba(255,255,255,0.1)',
-        borderRadius: 8,
-        padding: '8px 12px',
-        boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
-      }}
-    >
-      <div style={{ fontSize: 13, fontWeight: 600, color: entry.payload?.fill || '#f1f5f9' }}>
+    <div style={{ background: 'var(--bg-elevated)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', boxShadow: 'var(--shadow-lg)' }}>
+      <div style={{ fontSize: 13, fontWeight: 600, color: entry.payload?.fill || 'var(--text)' }}>
         {entry.name}: {entry.value}
       </div>
     </div>
@@ -186,7 +120,6 @@ export function DashboardClient({
   inventoryData,
   items,
 }: Props) {
-  // Build items lookup map: id -> item name
   const itemMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const item of items) {
@@ -198,10 +131,8 @@ export function DashboardClient({
     return map;
   }, [items]);
 
-  // Status distribution for pie chart
   const statusData = useMemo(() => countStatuses(recentProdOrders), [recentProdOrders]);
 
-  // Top inventory items for bar chart
   const inventoryChartData = useMemo(() => {
     return inventoryData
       .map((inv) => {
@@ -209,7 +140,6 @@ export function DashboardClient({
         const itemRef = inv['Item'];
         const itemId = Array.isArray(itemRef) ? itemRef[0] : itemRef;
         const itemName = (itemId && itemMap[itemId]) || inv['Item Name'] || 'Unknown';
-        // Truncate long names
         const shortName = itemName.length > 14 ? itemName.slice(0, 12) + '..' : itemName;
         return { name: shortName, fullName: itemName, qty };
       })
@@ -218,17 +148,24 @@ export function DashboardClient({
       .slice(0, 10);
   }, [inventoryData, itemMap]);
 
-  // Heatmap data (memoized so it doesn't regenerate on every render)
-  const heatmapData = useMemo(() => generateHeatmapData(), []);
+  // Compute real stats
+  const totalRecords = Object.values(stats).reduce((a, b) => a + b, 0);
+  const lowStockCount = useMemo(() =>
+    inventoryData.filter(inv => {
+      const qty = Number(inv['Qty On Hand'] ?? 0);
+      const reserved = Number(inv['Qty Reserved'] ?? 0);
+      return (qty - reserved) <= 0 && qty > 0;
+    }).length
+  , [inventoryData]);
 
   return (
     <div>
-      {/* ── Header ─────────────────────────────── */}
+      {/* Header */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Command Center</h1>
           <p className="page-subtitle">
-            Enterprise MRP Overview &mdash; Real-time operations intelligence
+            Enterprise MRP Overview &mdash; {totalRecords.toLocaleString()} total records across all modules
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -241,108 +178,55 @@ export function DashboardClient({
         </div>
       </div>
 
-      {/* ── KPI Cards ──────────────────────────── */}
+      {/* KPI Cards (real data only) */}
       <div className="kpi-grid">
         {KPI_CARDS.map((card) => {
           const count = stats[card.key] ?? 0;
-          const sparkData = generateSparklineData(count);
-          const isUp = card.trend >= 0;
           return (
             <Link key={card.key} href={card.href} className="kpi-card" style={{ textDecoration: 'none', color: 'inherit' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ position: 'relative', zIndex: 1 }}>
-                  <div className="kpi-label">{card.label}</div>
-                  <div className="kpi-value" style={{ marginTop: 6 }}>{count.toLocaleString()}</div>
-                  <div className={`kpi-trend ${isUp ? 'up' : 'down'}`}>
-                    {isUp ? '\u25B2' : '\u25BC'} {Math.abs(card.trend)}% vs last week
-                  </div>
-                </div>
-                <div className="kpi-sparkline">
-                  <AreaChart width={90} height={40} data={sparkData} margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
-                    <defs>
-                      <linearGradient id={`spark-${card.key}`} x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={card.color} stopOpacity={0.6} />
-                        <stop offset="100%" stopColor={card.color} stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <Area
-                      type="monotone"
-                      dataKey="v"
-                      stroke={card.color}
-                      strokeWidth={1.5}
-                      fill={`url(#spark-${card.key})`}
-                      isAnimationActive={false}
-                    />
-                  </AreaChart>
-                </div>
+              <div className="kpi-label">{card.label}</div>
+              <div className="kpi-value" style={{ marginTop: 6, color: card.color }}>{count.toLocaleString()}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 4 }}>
+                View all &rarr;
               </div>
             </Link>
           );
         })}
       </div>
 
-      {/* ── Activity Heatmap ───────────────────── */}
-      <div className="chart-card" style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: 0 }}>
-              Activity Heatmap
-            </h3>
-            <p style={{ fontSize: 11, color: '#64748b', margin: '2px 0 0' }}>
-              Operations intensity over the past 7 days
-            </p>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{ fontSize: 10, color: '#64748b' }}>Less</span>
-            {[0.02, 0.15, 0.35, 0.55, 0.75, 0.95].map((v, i) => (
-              <div
-                key={i}
-                style={{
-                  width: 12,
-                  height: 12,
-                  borderRadius: 2,
-                  background: heatmapColor(v),
-                }}
-              />
-            ))}
-            <span style={{ fontSize: 10, color: '#64748b' }}>More</span>
-          </div>
+      {/* Extra KPI row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 24 }}>
+        <div className="kpi-card">
+          <div className="kpi-label">Inventory Records</div>
+          <div className="kpi-value" style={{ marginTop: 6, color: '#06b6d4' }}>{(stats['Inventory'] ?? inventoryData.length).toLocaleString()}</div>
         </div>
-        <div className="heatmap">
-          {/* Hour labels */}
-          <div className="heatmap-row">
-            <div className="heatmap-label" />
-            {Array.from({ length: 24 }, (_, h) => (
-              <div key={h} className="heatmap-hour">
-                {h % 3 === 0 ? `${h}` : ''}
-              </div>
-            ))}
+        <div className="kpi-card">
+          <div className="kpi-label">Suppliers</div>
+          <div className="kpi-value" style={{ marginTop: 6, color: '#ec4899' }}>{(stats['Suppliers'] ?? 0).toLocaleString()}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Customers</div>
+          <div className="kpi-value" style={{ marginTop: 6, color: '#14b8a6' }}>{(stats['Customers'] ?? 0).toLocaleString()}</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            Low Stock Alerts
+            {lowStockCount > 0 && (
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', display: 'inline-block', boxShadow: '0 0 6px #ef4444' }} />
+            )}
           </div>
-          {/* Rows */}
-          {heatmapData.map((row, day) => (
-            <div key={day} className="heatmap-row">
-              <div className="heatmap-label">{DAY_LABELS[day]}</div>
-              {row.map((intensity, hour) => (
-                <div
-                  key={hour}
-                  className="heatmap-cell"
-                  style={{ background: heatmapColor(intensity) }}
-                  title={`${DAY_LABELS[day]} ${hour}:00 - ${(intensity * 100).toFixed(0)}% activity`}
-                />
-              ))}
-            </div>
-          ))}
+          <div className="kpi-value" style={{ marginTop: 6, color: lowStockCount > 0 ? '#ef4444' : '#10b981' }}>{lowStockCount}</div>
         </div>
       </div>
 
-      {/* ── Charts Row ─────────────────────────── */}
+      {/* Charts Row */}
       <div className="dashboard-grid" style={{ marginBottom: 16 }}>
         {/* Pie: Status Distribution */}
         <div className="chart-card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>
             Production Status Distribution
           </h3>
-          <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 16px' }}>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 16px' }}>
             Current production order breakdown
           </p>
           {statusData.length === 0 ? (
@@ -350,32 +234,15 @@ export function DashboardClient({
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <PieChart>
-                <Pie
-                  data={statusData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={3}
-                  dataKey="value"
-                  stroke="none"
-                >
+                <Pie data={statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} paddingAngle={3} dataKey="value" stroke="none">
                   {statusData.map((entry, idx) => (
-                    <Cell
-                      key={entry.name}
-                      fill={PIE_COLORS[entry.name] || PIE_FALLBACK_COLORS[idx % PIE_FALLBACK_COLORS.length]}
-                    />
+                    <Cell key={entry.name} fill={PIE_COLORS[entry.name] || PIE_FALLBACK_COLORS[idx % PIE_FALLBACK_COLORS.length]} />
                   ))}
                 </Pie>
                 <Tooltip content={<PieTooltip />} />
-                <Legend
-                  verticalAlign="bottom"
-                  iconType="circle"
-                  iconSize={8}
-                  formatter={(value: string) => (
-                    <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 500 }}>{value}</span>
-                  )}
-                />
+                <Legend verticalAlign="bottom" iconType="circle" iconSize={8} formatter={(value: string) => (
+                  <span style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 500 }}>{value}</span>
+                )} />
               </PieChart>
             </ResponsiveContainer>
           )}
@@ -383,10 +250,10 @@ export function DashboardClient({
 
         {/* Bar: Inventory by Item */}
         <div className="chart-card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px' }}>
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: '0 0 4px' }}>
             Inventory by Item
           </h3>
-          <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 16px' }}>
+          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 16px' }}>
             Top items by quantity on hand
           </p>
           {inventoryChartData.length === 0 ? (
@@ -394,29 +261,10 @@ export function DashboardClient({
           ) : (
             <ResponsiveContainer width="100%" height={260}>
               <BarChart data={inventoryChartData} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
-                <XAxis
-                  dataKey="name"
-                  tick={{ fill: '#64748b', fontSize: 10 }}
-                  axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
-                  tickLine={false}
-                  interval={0}
-                  angle={-35}
-                  textAnchor="end"
-                  height={50}
-                />
-                <YAxis
-                  tick={{ fill: '#64748b', fontSize: 11 }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={45}
-                />
+                <XAxis dataKey="name" tick={{ fill: 'var(--text-muted)', fontSize: 10 }} axisLine={{ stroke: 'var(--border)' }} tickLine={false} interval={0} angle={-35} textAnchor="end" height={50} />
+                <YAxis tick={{ fill: 'var(--text-muted)', fontSize: 11 }} axisLine={false} tickLine={false} width={45} />
                 <Tooltip content={<DarkTooltip />} cursor={{ fill: 'rgba(99,102,241,0.08)' }} />
-                <Bar
-                  dataKey="qty"
-                  name="Qty On Hand"
-                  radius={[4, 4, 0, 0]}
-                  maxBarSize={36}
-                >
+                <Bar dataKey="qty" name="Qty On Hand" radius={[4, 4, 0, 0]} maxBarSize={36}>
                   {inventoryChartData.map((_, idx) => (
                     <Cell key={idx} fill={idx === 0 ? '#6366f1' : idx === 1 ? '#818cf8' : '#4f46e5'} fillOpacity={1 - idx * 0.06} />
                   ))}
@@ -427,7 +275,7 @@ export function DashboardClient({
         </div>
       </div>
 
-      {/* ── Recent Activity Tables ─────────────── */}
+      {/* Recent Activity Tables */}
       <div className="dashboard-grid" style={{ marginBottom: 16 }}>
         <RecentTable
           title="Recent Production Orders"
@@ -451,29 +299,33 @@ export function DashboardClient({
         />
       </div>
 
-      {/* ── Quick Actions ──────────────────────── */}
-      <div className="chart-card">
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: '0 0 14px' }}>
-          Quick Actions
-        </h3>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-          {QUICK_ACTIONS.map((action) => (
-            <Link key={action.href} href={action.href} className="quick-action-btn">
-              <svg
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d={action.icon} />
-              </svg>
-              {action.label}
-            </Link>
-          ))}
+      <div className="dashboard-grid" style={{ marginBottom: 16 }}>
+        <RecentTable
+          title="Recent Purchase Orders"
+          data={recentPurchaseOrders}
+          href="/purchase-orders"
+          columns={[
+            { key: 'PO Number', label: 'PO Number' },
+            { key: 'Order Date', label: 'Order Date', type: 'date' },
+            { key: 'Status', label: 'Status', type: 'status' },
+          ]}
+        />
+
+        {/* Quick Actions */}
+        <div className="chart-card">
+          <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--text)', margin: '0 0 14px' }}>
+            Quick Actions
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+            {QUICK_ACTIONS.map((action) => (
+              <Link key={action.href} href={action.href} className="quick-action-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d={action.icon} />
+                </svg>
+                {action.label}
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
     </div>
@@ -490,66 +342,36 @@ interface ColumnDef {
   type?: 'date' | 'status';
 }
 
-function RecentTable({
-  title,
-  data,
-  href,
-  columns,
-}: {
-  title: string;
-  data: any[];
-  href: string;
-  columns: ColumnDef[];
-}) {
+function RecentTable({ title, data, href, columns }: { title: string; data: any[]; href: string; columns: ColumnDef[] }) {
   return (
     <div className="table-container">
       <div className="section-header">
         <h3 className="section-title">{title}</h3>
-        <Link href={href} className="section-link">
-          View all &rarr;
-        </Link>
+        <Link href={href} className="section-link">View all &rarr;</Link>
       </div>
       <table className="data-table">
         <thead>
           <tr>
-            {columns.map((col) => (
-              <th key={col.key}>{col.label}</th>
-            ))}
+            {columns.map((col) => <th key={col.key}>{col.label}</th>)}
           </tr>
         </thead>
         <tbody>
           {data.length === 0 ? (
             <tr>
               <td colSpan={columns.length}>
-                <div className="empty-state" style={{ padding: 24 }}>
-                  No records yet
-                </div>
+                <div className="empty-state" style={{ padding: 24 }}>No records yet</div>
               </td>
             </tr>
           ) : (
             data.map((row, i) => (
               <tr key={row.id || i}>
                 {columns.map((col) => {
-                  if (col.type === 'status') {
-                    return (
-                      <td key={col.key}>
-                        <StatusBadge value={row[col.key]} />
-                      </td>
-                    );
-                  }
+                  if (col.type === 'status') return <td key={col.key}><StatusBadge value={row[col.key]} /></td>;
                   if (col.type === 'date') {
                     const raw = row[col.key];
-                    return (
-                      <td key={col.key} style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-                        {raw ? new Date(raw).toLocaleDateString() : '\u2014'}
-                      </td>
-                    );
+                    return <td key={col.key} style={{ color: 'var(--text-muted)', fontSize: 13 }}>{raw ? new Date(raw).toLocaleDateString() : '\u2014'}</td>;
                   }
-                  return (
-                    <td key={col.key} style={{ fontWeight: 600, color: 'var(--text)' }}>
-                      {row[col.key] || '\u2014'}
-                    </td>
-                  );
+                  return <td key={col.key} style={{ fontWeight: 600, color: 'var(--text)' }}>{row[col.key] || '\u2014'}</td>;
                 })}
               </tr>
             ))

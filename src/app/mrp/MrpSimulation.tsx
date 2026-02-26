@@ -98,7 +98,7 @@ function fmtCurrency(n: number): string {
 
 export function MrpSimulation({ items, boms, bomLines, inventory, salesOrderLines, productionOrders }: Props) {
   const [params, setParams] = useState<SimParams>({ ...DEFAULT_PARAMS });
-  const [hasRun, setHasRun] = useState(false);
+  const [hasRun, setHasRun] = useState(true);
   const [tab, setTab] = useState<'overview' | 'bom' | 'recommendations'>('overview');
   const [selectedBomItem, setSelectedBomItem] = useState('');
 
