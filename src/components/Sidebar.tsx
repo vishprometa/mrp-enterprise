@@ -5,66 +5,55 @@ import { usePathname } from 'next/navigation';
 
 const NAV = [
   { category: 'Overview', items: [
-    { label: 'Dashboard', href: '/', icon: '&#xe871;' },
-    { label: 'MRP Simulation', href: '/mrp', icon: '&#xe863;' },
+    { label: 'Dashboard', href: '/' },
+    { label: 'MRP Simulation', href: '/mrp' },
+    { label: 'Analytics', href: '/analytics' },
+    { label: 'Audit Log', href: '/audit' },
   ]},
   { category: 'Master Data', items: [
-    { label: 'Items', href: '/items', icon: '&#xe54e;' },
-    { label: 'Suppliers', href: '/suppliers', icon: '&#xe558;' },
-    { label: 'Customers', href: '/customers', icon: '&#xe7fb;' },
-    { label: 'Warehouses', href: '/warehouses', icon: '&#xe8d1;' },
-    { label: 'Work Centers', href: '/work-centers', icon: '&#xea3c;' },
-    { label: 'Units of Measure', href: '/uom', icon: '&#xe1b7;' },
+    { label: 'Items', href: '/items' },
+    { label: 'Suppliers', href: '/suppliers' },
+    { label: 'Customers', href: '/customers' },
+    { label: 'Warehouses', href: '/warehouses' },
+    { label: 'Work Centers', href: '/work-centers' },
+    { label: 'Units of Measure', href: '/uom' },
   ]},
   { category: 'Engineering', items: [
-    { label: 'Bill of Materials', href: '/bom', icon: '&#xe8ef;' },
-    { label: 'BOM Lines', href: '/bom-lines', icon: '&#xe241;' },
-    { label: 'Routings', href: '/routings', icon: '&#xe569;' },
-    { label: 'Routing Operations', href: '/routing-ops', icon: '&#xe869;' },
+    { label: 'Bill of Materials', href: '/bom' },
+    { label: 'BOM Lines', href: '/bom-lines' },
+    { label: 'Routings', href: '/routings' },
+    { label: 'Routing Operations', href: '/routing-ops' },
   ]},
   { category: 'Purchasing', items: [
-    { label: 'Purchase Orders', href: '/purchase-orders', icon: '&#xf1cc;' },
-    { label: 'PO Lines', href: '/po-lines', icon: '&#xe873;' },
+    { label: 'Purchase Orders', href: '/purchase-orders' },
+    { label: 'PO Lines', href: '/po-lines' },
   ]},
   { category: 'Sales', items: [
-    { label: 'Sales Orders', href: '/sales-orders', icon: '&#xe8cc;' },
-    { label: 'SO Lines', href: '/so-lines', icon: '&#xe873;' },
+    { label: 'Sales Orders', href: '/sales-orders' },
+    { label: 'SO Lines', href: '/so-lines' },
   ]},
   { category: 'Manufacturing', items: [
-    { label: 'Production Orders', href: '/production-orders', icon: '&#xea3a;' },
-    { label: 'Prod Operations', href: '/prod-ops', icon: '&#xe8c8;' },
+    { label: 'Production Orders', href: '/production-orders' },
+    { label: 'Prod Operations', href: '/prod-ops' },
   ]},
   { category: 'Inventory', items: [
-    { label: 'Inventory', href: '/inventory', icon: '&#xe1b8;' },
-    { label: 'Transactions', href: '/inv-transactions', icon: '&#xe8d4;' },
+    { label: 'Inventory', href: '/inventory' },
+    { label: 'Transactions', href: '/inv-transactions' },
   ]},
   { category: 'Planning', items: [
-    { label: 'Demand Forecasts', href: '/forecasts', icon: '&#xe6e1;' },
-    { label: 'MRP Runs', href: '/mrp-runs', icon: '&#xe037;' },
-    { label: 'Recommendations', href: '/mrp-recs', icon: '&#xe90f;' },
+    { label: 'Demand Forecasts', href: '/forecasts' },
+    { label: 'MRP Runs', href: '/mrp-runs' },
+    { label: 'Recommendations', href: '/mrp-recs' },
   ]},
   { category: 'Quality', items: [
-    { label: 'Inspections', href: '/inspections', icon: '&#xef76;' },
-    { label: 'Check Items', href: '/check-items', icon: '&#xe86c;' },
+    { label: 'Inspections', href: '/inspections' },
+    { label: 'Check Items', href: '/check-items' },
   ]},
   { category: 'Capacity & Finance', items: [
-    { label: 'Capacity Plans', href: '/capacity', icon: '&#xe01d;' },
-    { label: 'Cost Centers', href: '/cost-centers', icon: '&#xe263;' },
+    { label: 'Capacity Plans', href: '/capacity' },
+    { label: 'Cost Centers', href: '/cost-centers' },
   ]},
 ];
-
-// Using simple SVG icons instead of Material Icons to avoid font loading
-const NavIcon = ({ active }: { active: boolean }) => (
-  <span style={{
-    width: 6,
-    height: 6,
-    borderRadius: '50%',
-    background: active ? '#818cf8' : '#4b5563',
-    display: 'block',
-    flexShrink: 0,
-    transition: 'all 150ms',
-  }} />
-);
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -74,7 +63,7 @@ export function Sidebar() {
         <div className="sidebar-brand-icon">M</div>
         <div className="sidebar-brand-text">
           <h1>MRP Enterprise</h1>
-          <p>Material Planning</p>
+          <p>Material Planning Console</p>
         </div>
       </div>
       <nav className="sidebar-nav">
@@ -84,12 +73,8 @@ export function Sidebar() {
             {group.items.map((item) => {
               const active = pathname === item.href;
               return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`sidebar-link${active ? ' active' : ''}`}
-                >
-                  <NavIcon active={active} />
+                <Link key={item.href} href={item.href} className={`sidebar-link${active ? ' active' : ''}`}>
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: active ? '#818cf8' : '#334155', display: 'block', flexShrink: 0 }} />
                   <span>{item.label}</span>
                 </Link>
               );
