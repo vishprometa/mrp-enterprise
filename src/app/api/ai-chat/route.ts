@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import WebSocket from 'ws';
 
+/* ─── Vercel Config ──────────────────────────────────────────────── */
+export const maxDuration = 120; // Allow up to 2 minutes for agent responses
+export const dynamic = 'force-dynamic';
+
 /* ─── Config ─────────────────────────────────────────────────────── */
 
 const ERPAI_BASE = process.env.ERPAI_BASE_URL || 'https://make-api.erpai.dev/api';
