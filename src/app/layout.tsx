@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { Sidebar } from '@/components/Sidebar';
 import { ThemeProvider } from '@/components/ThemeProvider';
+import { AppShell } from '@/components/AppShell';
 
 export const metadata: Metadata = {
   title: 'MRP Enterprise',
@@ -22,7 +23,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="app-layout">
             <Sidebar />
             <main className="app-main">
-              {children}
+              <AppShell>
+                {children}
+              </AppShell>
             </main>
           </div>
         </ThemeProvider>

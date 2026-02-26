@@ -7,11 +7,23 @@ import { Modal } from '@/components/Modal';
 import { RecordForm } from '@/components/RecordForm';
 import { StatusBadge } from '@/components/StatusBadge';
 import {
-  PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, Legend,
 } from 'recharts';
 
-// ── Constants ────────────────────────────────────
+/* ═══════════════════════════════════════════
+   Types
+   ═══════════════════════════════════════════ */
+
+interface Props {
+  orders: Record<string, any>[];
+  customers: Record<string, any>[];
+  soLines: Record<string, any>[];
+}
+
+/* ═══════════════════════════════════════════
+   Constants
+   ═══════════════════════════════════════════ */
 
 const CHART_TOOLTIP = {
   contentStyle: { background: '#1a2332', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8 },
@@ -19,7 +31,6 @@ const CHART_TOOLTIP = {
   itemStyle: { color: '#f1f5f9' },
 };
 const AXIS_TICK = { fill: '#64748b', fontSize: 11 };
-const GRID_STROKE = 'rgba(255,255,255,0.04)';
 const COLORS = ['#6366f1', '#f97316', '#10b981', '#06b6d4', '#f59e0b', '#a855f7', '#ec4899', '#14b8a6'];
 
 const PIPELINE_STAGES = ['Draft', 'Confirmed', 'In Production', 'Shipped', 'Delivered', 'Cancelled'] as const;
@@ -46,14 +57,9 @@ const formFields = [
   { name: 'Notes', label: 'Notes', type: 'textarea' as const },
 ];
 
-// ── Types ────────────────────────────────────────
-
-interface Props {
-  orders: Record<string, any>[];
-  customers: Record<string, any>[];
-}
-
-// ── Helpers ──────────────────────────────────────
+/* ═══════════════════════════════════════════
+   Helpers
+   ═══════════════════════════════════════════ */
 
 function resolveStatus(val: any): string {
   if (Array.isArray(val)) return val[0] ?? 'Unknown';
@@ -78,36 +84,11 @@ function fmtDate(val: any): string {
   }
 }
 
-function fmtMonth(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-  } catch {
-    return '';
-  }
-}
+/* ═══════════════════════════════════════════
+   Component
+   ═══════════════════════════════════════════ */
 
-// ── Custom Tooltip ───────────────────────────────
-
-function ChartTooltip({ active, payload, label }: any) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div style={{ background: '#1a2332', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, padding: '10px 14px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
-      {label && <p style={{ color: '#94a3b8', margin: '0 0 4px', fontSize: 12 }}>{label}</p>}
-      {payload.map((entry: any, i: number) => (
-        <p key={i} style={{ color: '#f1f5f9', margin: '2px 0', fontSize: 12 }}>
-          <span style={{ color: entry.color || entry.fill, marginRight: 6 }}>{'\u25CF'}</span>
-          {entry.name}: <strong>{typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}</strong>
-        </p>
-      ))}
-    </div>
-  );
-}
-
-// ── Component ────────────────────────────────────
-
-export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
+export function SalesOrdersClient({ orders: initialOrders, customers, soLines }: Props) {
   const [orders, setOrders] = useState(initialOrders);
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [priorityFilter, setPriorityFilter] = useState<string>('All');
@@ -116,7 +97,7 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
   const [editRecord, setEditRecord] = useState<any>(null);
   const [detailRecord, setDetailRecord] = useState<any>(null);
 
-  // Customer lookup map
+  // ── Customer lookup ─────────────────────────
   const customerMap = useMemo(() => {
     const map: Record<string, string> = {};
     for (const c of customers) {
@@ -127,7 +108,6 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
     return map;
   }, [customers]);
 
-  // Resolve customer name from reference
   const resolveCustomer = useCallback((order: any): string => {
     const ref = order['Customer'];
     const id = Array.isArray(ref) ? ref[0] : ref;
@@ -135,48 +115,102 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
     return 'Unknown';
   }, [customerMap]);
 
-  // ── KPI Calculations ──────────────────────────
-
+  // ── Revenue Pipeline KPIs ──────────────────
   const kpis = useMemo(() => {
-    const totalSOs = orders.length;
     const totalRevenue = orders.reduce((sum, o) => sum + resolveAmount(o['Total Amount']), 0);
-    const pendingOrders = orders.filter(o => {
-      const s = resolveStatus(o['Status']);
-      return s === 'Draft' || s === 'Confirmed';
+    const avgOrderValue = orders.length > 0 ? totalRevenue / orders.length : 0;
+
+    // Fulfillment Rate (shipped SO lines / total SO lines)
+    const totalLines = soLines.length;
+    const shippedLines = soLines.filter(line => {
+      const status = resolveStatus(line['Status'] || line['Line Status']);
+      return status === 'Shipped' || status === 'Delivered' || status === 'Fulfilled';
     }).length;
-    const avgOrderValue = totalSOs > 0 ? totalRevenue / totalSOs : 0;
-    return { totalSOs, totalRevenue, pendingOrders, avgOrderValue };
-  }, [orders]);
+    const fulfillmentRate = totalLines > 0 ? Math.round((shippedLines / totalLines) * 100) : 0;
 
-  // ── Pipeline data ─────────────────────────────
-
-  const pipelineData = useMemo(() => {
-    return PIPELINE_STAGES.map(stage => {
-      const stageOrders = orders.filter(o => resolveStatus(o['Status']) === stage);
-      const count = stageOrders.length;
-      const revenue = stageOrders.reduce((sum, o) => sum + resolveAmount(o['Total Amount']), 0);
-      return { stage, count, revenue };
-    });
-  }, [orders]);
-
-  // ── Monthly revenue trend ─────────────────────
-
-  const monthlyRevenue = useMemo(() => {
-    const buckets: Record<string, number> = {};
+    // Top Customer
+    const customerCounts: Record<string, { count: number; revenue: number }> = {};
     for (const o of orders) {
-      const raw = o['Order Date'];
-      if (!raw) continue;
-      const month = fmtMonth(String(raw));
-      if (!month) continue;
-      buckets[month] = (buckets[month] || 0) + resolveAmount(o['Total Amount']);
+      const ref = o['Customer'];
+      const cid = Array.isArray(ref) ? ref[0] : ref;
+      if (cid) {
+        if (!customerCounts[cid]) customerCounts[cid] = { count: 0, revenue: 0 };
+        customerCounts[cid].count++;
+        customerCounts[cid].revenue += resolveAmount(o['Total Amount']);
+      }
     }
-    return Object.entries(buckets)
-      .map(([month, revenue]) => ({ month, revenue }))
-      .sort((a, b) => new Date(a.month).getTime() - new Date(b.month).getTime());
+    let topCustomerId = '';
+    let topCustomerCount = 0;
+    for (const [cid, data] of Object.entries(customerCounts)) {
+      if (data.count > topCustomerCount) {
+        topCustomerCount = data.count;
+        topCustomerId = cid;
+      }
+    }
+    const topCustomerName = topCustomerId ? (customerMap[topCustomerId] || 'Unknown') : 'N/A';
+
+    return { totalRevenue, avgOrderValue, fulfillmentRate, shippedLines, totalLines, topCustomerName, topCustomerCount };
+  }, [orders, soLines, customerMap]);
+
+  // ── Customer Concentration ─────────────────
+  const customerConcentration = useMemo(() => {
+    const revenueByCustomer: Record<string, number> = {};
+    let totalRevenue = 0;
+    for (const o of orders) {
+      const ref = o['Customer'];
+      const cid = Array.isArray(ref) ? ref[0] : ref;
+      const amt = resolveAmount(o['Total Amount']);
+      totalRevenue += amt;
+      if (cid) {
+        revenueByCustomer[cid] = (revenueByCustomer[cid] || 0) + amt;
+      }
+    }
+    if (totalRevenue === 0) return null;
+
+    let maxCid = '';
+    let maxRevenue = 0;
+    for (const [cid, rev] of Object.entries(revenueByCustomer)) {
+      if (rev > maxRevenue) {
+        maxRevenue = rev;
+        maxCid = cid;
+      }
+    }
+    const pct = Math.round((maxRevenue / totalRevenue) * 100);
+    return {
+      customerName: customerMap[maxCid] || 'Unknown',
+      percentage: pct,
+      revenue: maxRevenue,
+      isRisk: pct > 50,
+    };
+  }, [orders, customerMap]);
+
+  // ── Revenue Forecast ───────────────────────
+  const revenueForecast = useMemo(() => {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    let currentMonthRevenue = 0;
+    let currentMonthOrders = 0;
+
+    for (const o of orders) {
+      const dateStr = o['Order Date'];
+      if (!dateStr) continue;
+      const d = new Date(dateStr);
+      if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
+        currentMonthRevenue += resolveAmount(o['Total Amount']);
+        currentMonthOrders++;
+      }
+    }
+
+    const dayOfMonth = now.getDate();
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const projectedMonthly = dayOfMonth > 0 ? Math.round((currentMonthRevenue / dayOfMonth) * daysInMonth) : 0;
+    const projectedAnnual = projectedMonthly * 12;
+
+    return { currentMonthRevenue, currentMonthOrders, projectedMonthly, projectedAnnual, dayOfMonth, daysInMonth };
   }, [orders]);
 
-  // ── Revenue by customer (top 5 + Other) ───────
-
+  // ── Chart: Revenue by Customer (top 6) ─────
   const revenueByCustomer = useMemo(() => {
     const buckets: Record<string, number> = {};
     for (const o of orders) {
@@ -187,15 +221,24 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
       .map(([name, revenue]) => ({ name, revenue }))
       .sort((a, b) => b.revenue - a.revenue);
 
-    if (sorted.length <= 5) return sorted;
-    const top5 = sorted.slice(0, 5);
-    const otherRevenue = sorted.slice(5).reduce((sum, c) => sum + c.revenue, 0);
-    if (otherRevenue > 0) top5.push({ name: 'Other', revenue: otherRevenue });
-    return top5;
+    if (sorted.length <= 6) return sorted;
+    const top6 = sorted.slice(0, 6);
+    const otherRevenue = sorted.slice(6).reduce((sum, c) => sum + c.revenue, 0);
+    if (otherRevenue > 0) top6.push({ name: 'Other', revenue: otherRevenue });
+    return top6;
   }, [orders, resolveCustomer]);
 
-  // ── Filtered orders ───────────────────────────
+  // ── Pipeline data ──────────────────────────
+  const pipelineData = useMemo(() => {
+    return PIPELINE_STAGES.map(stage => {
+      const stageOrders = orders.filter(o => resolveStatus(o['Status']) === stage);
+      const count = stageOrders.length;
+      const revenue = stageOrders.reduce((sum, o) => sum + resolveAmount(o['Total Amount']), 0);
+      return { stage, count, revenue };
+    });
+  }, [orders]);
 
+  // ── Filtered orders ────────────────────────
   const filteredOrders = useMemo(() => {
     let result = orders;
     if (statusFilter !== 'All') {
@@ -212,7 +255,6 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
         return so.includes(q) || cust.includes(q);
       });
     }
-    // Sort by Order Date desc
     return [...result].sort((a, b) => {
       const da = a['Order Date'] ? new Date(a['Order Date']).getTime() : 0;
       const db = b['Order Date'] ? new Date(b['Order Date']).getTime() : 0;
@@ -220,12 +262,10 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
     });
   }, [orders, statusFilter, priorityFilter, search, resolveCustomer]);
 
-  // ── CRUD handlers ─────────────────────────────
-
+  // ── CRUD handlers ──────────────────────────
   const handleCreate = async (values: Record<string, any>) => {
     await createRecord(TABLES.SALES_ORDERS, values);
     setCreateOpen(false);
-    // Optimistic: add to local state
     setOrders(prev => [{ ...values, id: 'temp-' + Date.now() }, ...prev]);
   };
 
@@ -242,11 +282,9 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
     setOrders(prev => prev.filter(o => o.id !== id));
   };
 
-  // ── Render ────────────────────────────────────
-
   return (
     <div>
-      {/* Header */}
+      {/* ── Header ───────────────────────────────── */}
       <div className="page-header">
         <div>
           <h1 className="page-title">Sales Orders</h1>
@@ -254,128 +292,208 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-primary" onClick={() => setCreateOpen(true)}>
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
             New Order
           </button>
         </div>
       </div>
 
-      {/* KPI Row */}
+      {/* ── Revenue Pipeline KPIs ─────────────────── */}
       <div className="kpi-grid">
         <div className="kpi-card">
-          <div className="kpi-label">Total Sales Orders</div>
-          <div className="kpi-value" style={{ marginTop: 6 }}>{kpis.totalSOs.toLocaleString()}</div>
-          <div className="kpi-trend neutral">{filteredOrders.length} shown</div>
-        </div>
-        <div className="kpi-card">
           <div className="kpi-label">Total Revenue</div>
-          <div className="kpi-value" style={{ marginTop: 6, color: '#10b981' }}>{fmtCurrency(kpis.totalRevenue)}</div>
-          <div className="kpi-trend neutral">across all orders</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label">Pending Orders</div>
-          <div className="kpi-value" style={{ marginTop: 6, color: '#f59e0b' }}>{kpis.pendingOrders}</div>
-          <div className="kpi-trend neutral">Draft + Confirmed</div>
+          <div className="kpi-value" style={{ color: '#10b981' }}>{fmtCurrency(kpis.totalRevenue)}</div>
+          <div className="kpi-trend neutral">{orders.length} sales orders</div>
         </div>
         <div className="kpi-card">
           <div className="kpi-label">Average Order Value</div>
-          <div className="kpi-value" style={{ marginTop: 6, color: '#6366f1' }}>{fmtCurrency(kpis.avgOrderValue)}</div>
+          <div className="kpi-value" style={{ color: '#6366f1' }}>{fmtCurrency(kpis.avgOrderValue)}</div>
           <div className="kpi-trend neutral">per order</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Fulfillment Rate</div>
+          <div className="kpi-value" style={{ color: kpis.fulfillmentRate >= 80 ? '#10b981' : kpis.fulfillmentRate >= 50 ? '#f59e0b' : '#ef4444' }}>
+            {kpis.fulfillmentRate}%
+          </div>
+          <div className="kpi-trend neutral">{kpis.shippedLines} of {kpis.totalLines} lines shipped</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Top Customer</div>
+          <div className="kpi-value" style={{ color: '#06b6d4', fontSize: 18 }}>{kpis.topCustomerName}</div>
+          <div className="kpi-trend neutral">{kpis.topCustomerCount} orders</div>
         </div>
       </div>
 
-      {/* Pipeline */}
-      <div className="pipeline">
-        {pipelineData.map(({ stage, count, revenue }) => (
-          <div
-            key={stage}
-            className={`pipeline-stage ${statusFilter === stage ? 'active' : ''}`}
-            onClick={() => setStatusFilter(statusFilter === stage ? 'All' : stage)}
-            style={{ cursor: 'pointer', borderTopColor: PIPELINE_COLORS[stage], borderTopWidth: 3, borderTopStyle: 'solid' }}
-          >
-            <div className="pipeline-count">{count}</div>
-            <div className="pipeline-label">{stage}</div>
-            <div className="pipeline-value">{fmtCurrency(revenue)}</div>
+      {/* ── Customer Concentration + Revenue Forecast ── */}
+      <div className="grid-2" style={{ marginBottom: 20 }}>
+        {/* Customer Concentration */}
+        <div className="glass-card" style={{ padding: '16px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Customer Concentration</div>
+            {customerConcentration?.isRisk && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                padding: '3px 10px', borderRadius: 100,
+                background: 'rgba(239,68,68,0.15)', color: '#ef4444',
+              }}>
+                HIGH RISK
+              </span>
+            )}
           </div>
-        ))}
-      </div>
-
-      {/* Charts */}
-      <div className="grid-2" style={{ marginBottom: 24 }}>
-        {/* Monthly Revenue Trend */}
-        <div className="chart-card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px' }}>Monthly Revenue Trend</h3>
-          <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 16px' }}>Revenue aggregated by order date month</p>
-          {monthlyRevenue.length === 0 ? (
-            <div className="empty-state" style={{ padding: 40 }}>No order data to chart</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={monthlyRevenue} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
-                <defs>
-                  <linearGradient id="revenueGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke={GRID_STROKE} vertical={false} />
-                <XAxis dataKey="month" tick={AXIS_TICK} axisLine={false} tickLine={false} />
-                <YAxis tick={AXIS_TICK} axisLine={false} tickLine={false} tickFormatter={(v: number) => '$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v)} />
-                <Tooltip content={<ChartTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="revenue"
-                  name="Revenue"
-                  stroke="#6366f1"
-                  strokeWidth={2.5}
-                  fill="url(#revenueGrad)"
-                  dot={{ fill: '#6366f1', r: 3, strokeWidth: 0 }}
-                  activeDot={{ r: 5, fill: '#818cf8' }}
+          {customerConcentration ? (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                <span>{customerConcentration.customerName}</span>
+                <span style={{ fontWeight: 700, color: customerConcentration.isRisk ? '#ef4444' : '#10b981' }}>
+                  {customerConcentration.percentage}% of revenue
+                </span>
+              </div>
+              <div className="progress-bar">
+                <div
+                  className={`progress-bar-fill ${customerConcentration.isRisk ? 'red' : 'green'}`}
+                  style={{ width: `${Math.min(customerConcentration.percentage, 100)}%` }}
                 />
-              </AreaChart>
-            </ResponsiveContainer>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+                {customerConcentration.isRisk
+                  ? 'Warning: Top customer holds >50% of revenue. Revenue at risk.'
+                  : 'Customer revenue distribution is healthy.'}
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>No revenue data available</div>
           )}
         </div>
 
-        {/* Revenue by Customer */}
+        {/* Revenue Forecast */}
+        <div className="glass-card" style={{ padding: '16px 20px' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>Revenue Forecast</div>
+          <div style={{ display: 'flex', gap: 16, marginBottom: 10 }}>
+            <div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 2 }}>This Month (Actual)</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#10b981' }}>
+                {fmtCurrency(revenueForecast.currentMonthRevenue)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                {revenueForecast.currentMonthOrders} orders in {revenueForecast.dayOfMonth} days
+              </div>
+            </div>
+            <div style={{ borderLeft: '1px solid var(--border)', paddingLeft: 16 }}>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginBottom: 2 }}>Projected Monthly</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#6366f1' }}>
+                {fmtCurrency(revenueForecast.projectedMonthly)}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>
+                {fmtCurrency(revenueForecast.projectedAnnual)} annual run rate
+              </div>
+            </div>
+          </div>
+          <div className="progress-bar" style={{ height: 6 }}>
+            <div
+              className="progress-bar-fill green"
+              style={{ width: `${Math.min((revenueForecast.dayOfMonth / revenueForecast.daysInMonth) * 100, 100)}%` }}
+            />
+          </div>
+          <div style={{ fontSize: 10, color: 'var(--text-dim)', marginTop: 4 }}>
+            Day {revenueForecast.dayOfMonth} of {revenueForecast.daysInMonth} in current month
+          </div>
+        </div>
+      </div>
+
+      {/* ── Charts ─────────────────────────────────── */}
+      <div className="grid-2" style={{ marginBottom: 24 }}>
+        {/* Revenue by Customer (bar chart) */}
         <div className="chart-card">
-          <h3 style={{ fontSize: 14, fontWeight: 700, color: '#f1f5f9', margin: '0 0 4px' }}>Revenue by Customer</h3>
-          <p style={{ fontSize: 11, color: '#64748b', margin: '0 0 16px' }}>Top 5 customers by total amount</p>
+          <h3>Revenue by Customer</h3>
           {revenueByCustomer.length === 0 ? (
             <div className="empty-state" style={{ padding: 40 }}>No customer data</div>
           ) : (
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie
-                  data={revenueByCustomer}
-                  dataKey="revenue"
-                  nameKey="name"
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={100}
-                  paddingAngle={3}
-                  stroke="none"
-                >
-                  {revenueByCustomer.map((_, idx) => (
-                    <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip content={<ChartTooltip />} />
-                <Legend
-                  verticalAlign="bottom"
-                  iconType="circle"
-                  iconSize={8}
-                  formatter={(value: string) => (
-                    <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 500 }}>{value}</span>
-                  )}
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={revenueByCustomer} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
+                <XAxis
+                  dataKey="name"
+                  tick={AXIS_TICK}
+                  axisLine={false}
+                  tickLine={false}
+                  interval={0}
+                  angle={-30}
+                  textAnchor="end"
+                  height={60}
                 />
-              </PieChart>
+                <YAxis
+                  tick={AXIS_TICK}
+                  axisLine={false}
+                  tickLine={false}
+                  width={60}
+                  tickFormatter={(v: number) => '$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : String(v))}
+                />
+                <Tooltip
+                  {...CHART_TOOLTIP}
+                  cursor={{ fill: 'rgba(99,102,241,0.08)' }}
+                  formatter={(value: any) => [fmtCurrency(Number(value)), 'Revenue']}
+                />
+                <Bar dataKey="revenue" name="Revenue" radius={[4, 4, 0, 0]} maxBarSize={40}>
+                  {revenueByCustomer.map((_, idx) => (
+                    <Cell key={idx} fill={COLORS[idx % COLORS.length]} fillOpacity={0.85} />
+                  ))}
+                </Bar>
+              </BarChart>
             </ResponsiveContainer>
           )}
         </div>
+
+        {/* SO Status Pipeline */}
+        <div className="chart-card">
+          <h3>SO Status Pipeline</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 0' }}>
+            {pipelineData.map((p, idx) => {
+              const maxCount = Math.max(...pipelineData.map(d => d.count), 1);
+              const widthPct = maxCount > 0 ? Math.max((p.count / maxCount) * 100, p.count > 0 ? 8 : 0) : 0;
+              return (
+                <div
+                  key={p.stage}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setStatusFilter(statusFilter === p.stage ? 'All' : p.stage)}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: PIPELINE_COLORS[p.stage] || '#64748b',
+                      }} />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{p.stage}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{p.count}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{fmtCurrency(p.revenue)}</span>
+                    </div>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${widthPct}%`,
+                      borderRadius: 3,
+                      background: PIPELINE_COLORS[p.stage] || '#64748b',
+                      transition: 'width 300ms ease',
+                    }} />
+                  </div>
+                  {idx < pipelineData.length - 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0' }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="2.5">
+                        <path d="M12 5v14M19 12l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
-      {/* Toolbar: filters + search */}
+      {/* ── Toolbar: filters + search ──────────────── */}
       <div className="toolbar">
         <div className="toolbar-actions">
           <div className="filter-bar" style={{ marginBottom: 0 }}>
@@ -402,7 +520,9 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
           </select>
           <div className="search-bar">
             <span className="search-icon">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" /></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
             </span>
             <input
               className="input"
@@ -415,10 +535,15 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
         </div>
       </div>
 
-      {/* Order Timeline Cards */}
+      {/* ── Order Timeline Cards ──────────────────── */}
       {filteredOrders.length === 0 ? (
         <div className="empty-state">
-          <div className="empty-state-icon">&#128230;</div>
+          <div className="empty-state-icon">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity={0.3}>
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+            </svg>
+          </div>
           No sales orders found
         </div>
       ) : (
@@ -445,14 +570,11 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
                 }}
                 onClick={() => setDetailRecord(order)}
               >
-                {/* SO Number */}
                 <div style={{ minWidth: 100 }}>
                   <span className="mono-text" style={{ fontSize: 13, fontWeight: 600 }}>
                     {order['SO Number'] || '\u2014'}
                   </span>
                 </div>
-
-                {/* Customer + Date */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)', marginBottom: 2 }}>
                     {customerName}
@@ -462,15 +584,11 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
                     <span>Required: {fmtDate(order['Required Date'])}</span>
                   </div>
                 </div>
-
-                {/* Amount */}
                 <div style={{ minWidth: 100, textAlign: 'right' }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: amount > 0 ? '#10b981' : 'var(--text-muted)', fontFamily: "'JetBrains Mono', monospace" }}>
                     {amount > 0 ? fmtCurrency(amount) : '\u2014'}
                   </div>
                 </div>
-
-                {/* Badges */}
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', minWidth: 200, justifyContent: 'flex-end' }}>
                   <StatusBadge value={priority} />
                   <StatusBadge value={status} />
@@ -484,23 +602,22 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
         </div>
       )}
 
-      {/* Create Modal */}
+      {/* ── Create Modal ───────────────────────────── */}
       <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="New Sales Order">
         <RecordForm fields={formFields} onSubmit={handleCreate} onCancel={() => setCreateOpen(false)} submitLabel="Create" />
       </Modal>
 
-      {/* Edit Modal */}
+      {/* ── Edit Modal ─────────────────────────────── */}
       <Modal open={!!editRecord} onClose={() => setEditRecord(null)} title="Edit Sales Order">
         {editRecord && (
           <RecordForm fields={formFields} initialValues={editRecord} onSubmit={handleUpdate} onCancel={() => setEditRecord(null)} submitLabel="Update" />
         )}
       </Modal>
 
-      {/* Detail Modal */}
+      {/* ── Detail Modal ───────────────────────────── */}
       <Modal open={!!detailRecord && !editRecord} onClose={() => setDetailRecord(null)} title="Sales Order Details">
         {detailRecord && (
           <div>
-            {/* Header row */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div>
                 <span className="mono-text" style={{ fontSize: 15, fontWeight: 700 }}>{detailRecord['SO Number']}</span>
@@ -512,7 +629,6 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
               </div>
             </div>
 
-            {/* Detail grid */}
             <div className="detail-grid" style={{ marginBottom: 20 }}>
               <div>
                 <div className="detail-field-label">Order Date</div>
@@ -540,13 +656,55 @@ export function SalesOrdersClient({ orders: initialOrders, customers }: Props) {
               )}
             </div>
 
+            {/* SO Lines in detail view */}
+            {(() => {
+              const orderLines = soLines.filter(line => {
+                const ref = line['Sales Order'];
+                const lineSOId = Array.isArray(ref) ? ref[0] : ref;
+                return lineSOId === detailRecord.id;
+              });
+              if (orderLines.length === 0) return null;
+              return (
+                <div style={{ marginBottom: 16 }}>
+                  <div className="detail-field-label" style={{ marginBottom: 8 }}>SO Lines ({orderLines.length})</div>
+                  <div className="table-container">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th>Qty</th>
+                          <th>Unit Price</th>
+                          <th>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orderLines.map((line) => (
+                          <tr key={line.id}>
+                            <td>{line['Item Name'] || line['Item'] || '--'}</td>
+                            <td>{line['Quantity'] ?? '--'}</td>
+                            <td>{fmtCurrency(resolveAmount(line['Unit Price']))}</td>
+                            <td style={{ fontWeight: 600, color: '#10b981' }}>{fmtCurrency(resolveAmount(line['Line Total'] || line['Total']))}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              );
+            })()}
+
             <div className="form-actions" style={{ marginTop: 0, paddingTop: 16 }}>
               <button className="btn btn-danger btn-sm" onClick={() => handleDelete(detailRecord.id)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                </svg>
                 Delete
               </button>
               <button className="btn btn-primary btn-sm" onClick={() => setEditRecord(detailRecord)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
                 Edit
               </button>
             </div>

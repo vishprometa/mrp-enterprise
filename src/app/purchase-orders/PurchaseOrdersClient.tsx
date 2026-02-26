@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, Legend, CartesianGrid,
+  ResponsiveContainer, Legend,
 } from 'recharts';
 import { createRecord, updateRecord, deleteRecord } from '@/lib/actions';
 import { TABLES } from '@/lib/tables';
@@ -18,6 +18,7 @@ import { StatusBadge } from '@/components/StatusBadge';
 interface Props {
   orders: Record<string, any>[];
   suppliers: Record<string, any>[];
+  poLines: Record<string, any>[];
 }
 
 /* ═══════════════════════════════════════════
@@ -30,14 +31,13 @@ const CHART_TOOLTIP = {
   itemStyle: { color: '#f1f5f9' },
 };
 const AXIS_TICK = { fill: '#64748b', fontSize: 11 };
-const GRID_STROKE = 'rgba(255,255,255,0.04)';
 const COLORS = ['#6366f1', '#f97316', '#10b981', '#06b6d4', '#f59e0b', '#a855f7', '#ec4899', '#14b8a6'];
 
-const PIPELINE_STAGES = ['Draft', 'Approved', 'Ordered', 'Partially Received', 'Received', 'Cancelled'] as const;
+const PIPELINE_STAGES = ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'] as const;
 const PIPELINE_COLORS: Record<string, string> = {
   Draft: '#64748b',
   Approved: '#10b981',
-  Ordered: '#6366f1',
+  Sent: '#6366f1',
   'Partially Received': '#a855f7',
   Received: '#06b6d4',
   Cancelled: '#ef4444',
@@ -54,7 +54,7 @@ const formFields = [
   { name: 'PO Number', label: 'PO Number', type: 'text' as const, required: true },
   { name: 'Order Date', label: 'Order Date', type: 'date' as const, required: true },
   { name: 'Expected Date', label: 'Expected Date', type: 'date' as const },
-  { name: 'Status', label: 'Status', type: 'select' as const, options: ['Draft', 'Approved', 'Ordered', 'Partially Received', 'Received', 'Cancelled'] },
+  { name: 'Status', label: 'Status', type: 'select' as const, options: ['Draft', 'Approved', 'Sent', 'Partially Received', 'Received', 'Cancelled'] },
   { name: 'Total Amount', label: 'Total Amount', type: 'number' as const },
   { name: 'Priority', label: 'Priority', type: 'select' as const, options: ['Low', 'Medium', 'High', 'Urgent'] },
   { name: 'Notes', label: 'Notes', type: 'textarea' as const },
@@ -68,16 +68,6 @@ function formatCurrency(val: any): string {
   const n = Number(val);
   if (isNaN(n)) return '$0';
   return '$' + n.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
-}
-
-function formatMonth(dateStr: string): string {
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return 'Unknown';
-    return d.toLocaleDateString('en-US', { year: 'numeric', month: 'short' });
-  } catch {
-    return 'Unknown';
-  }
 }
 
 function resolveStatus(order: Record<string, any>): string {
@@ -96,7 +86,7 @@ function resolvePriority(order: Record<string, any>): string {
    Component
    ═══════════════════════════════════════════ */
 
-export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props) {
+export function PurchaseOrdersClient({ orders: initialOrders, suppliers, poLines }: Props) {
   const [orders, setOrders] = useState(initialOrders);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All');
@@ -121,25 +111,106 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
     return id ? supplierMap[id] : null;
   }, [supplierMap]);
 
-  // ── KPI calculations ─────────────────────────
+  // ── Spend Analytics KPIs ───────────────────────
   const kpis = useMemo(() => {
     let totalSpend = 0;
-    let pendingCount = 0;
-    const activeSupplierIds = new Set<string>();
+    let lateCount = 0;
+    let totalWithDate = 0;
+    const supplierCounts: Record<string, number> = {};
+    const now = new Date();
 
     for (const o of orders) {
       totalSpend += Number(o['Total Amount'] ?? 0);
-      const status = resolveStatus(o);
-      if (status === 'Draft' || status === 'Approved') pendingCount++;
+
+      // On-time delivery calculation
+      const expectedDate = o['Expected Date'];
+      if (expectedDate) {
+        totalWithDate++;
+        const expected = new Date(expectedDate);
+        if (expected < now && resolveStatus(o) !== 'Received' && resolveStatus(o) !== 'Cancelled') {
+          lateCount++;
+        }
+      }
+
+      // Supplier counting for top supplier
       const ref = o['Supplier'];
-      const id = Array.isArray(ref) ? ref[0] : ref;
-      if (id) activeSupplierIds.add(id);
+      const sid = Array.isArray(ref) ? ref[0] : ref;
+      if (sid) {
+        supplierCounts[sid] = (supplierCounts[sid] || 0) + 1;
+      }
     }
 
-    return { totalPOs: orders.length, totalSpend, pendingCount, activeSuppliers: activeSupplierIds.size };
+    const avgOrderValue = orders.length > 0 ? totalSpend / orders.length : 0;
+    const onTimeRate = totalWithDate > 0 ? Math.round(((totalWithDate - lateCount) / totalWithDate) * 100) : 100;
+
+    // Top supplier
+    let topSupplierId = '';
+    let topSupplierCount = 0;
+    for (const [sid, count] of Object.entries(supplierCounts)) {
+      if (count > topSupplierCount) {
+        topSupplierCount = count;
+        topSupplierId = sid;
+      }
+    }
+    const topSupplierName = topSupplierId ? (supplierMap[topSupplierId] || 'Unknown') : 'N/A';
+
+    return { totalSpend, avgOrderValue, onTimeRate, topSupplierName, topSupplierCount, lateCount, totalWithDate };
+  }, [orders, supplierMap]);
+
+  // ── Supplier Concentration Risk ────────────────
+  const supplierConcentration = useMemo(() => {
+    const counts: Record<string, number> = {};
+    for (const o of orders) {
+      const ref = o['Supplier'];
+      const sid = Array.isArray(ref) ? ref[0] : ref;
+      if (sid) {
+        counts[sid] = (counts[sid] || 0) + 1;
+      }
+    }
+    if (orders.length === 0) return null;
+
+    let maxSid = '';
+    let maxCount = 0;
+    for (const [sid, count] of Object.entries(counts)) {
+      if (count > maxCount) {
+        maxCount = count;
+        maxSid = sid;
+      }
+    }
+    const pct = Math.round((maxCount / orders.length) * 100);
+    if (pct > 40) {
+      return { supplierName: supplierMap[maxSid] || 'Unknown', percentage: pct, isRisk: true };
+    }
+    return { supplierName: supplierMap[maxSid] || 'Unknown', percentage: pct, isRisk: false };
+  }, [orders, supplierMap]);
+
+  // ── Budget Burn Rate ───────────────────────────
+  const budgetBurn = useMemo(() => {
+    const totalSpend = orders.reduce((s, o) => s + Number(o['Total Amount'] ?? 0), 0);
+    const budget = totalSpend * 1.2; // synthetic budget at 120% of spend
+    const pct = budget > 0 ? Math.round((totalSpend / budget) * 100) : 0;
+    return { spent: totalSpend, budget, pct };
   }, [orders]);
 
-  // ── Pipeline data ────────────────────────────
+  // ── Chart: Spend by Supplier (horizontal bar) ──
+  const supplierSpend = useMemo(() => {
+    const totals: Record<string, number> = {};
+    for (const o of orders) {
+      const name = resolveSupplier(o) || 'Unknown';
+      totals[name] = (totals[name] || 0) + Number(o['Total Amount'] ?? 0);
+    }
+    const sorted = Object.entries(totals)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+
+    if (sorted.length <= 8) return sorted;
+    const top8 = sorted.slice(0, 8);
+    const otherTotal = sorted.slice(8).reduce((sum, s) => sum + s.value, 0);
+    if (otherTotal > 0) top8.push({ name: 'Other', value: otherTotal });
+    return top8;
+  }, [orders, resolveSupplier]);
+
+  // ── Pipeline data ──────────────────────────────
   const pipelineData = useMemo(() => {
     const counts: Record<string, { count: number; amount: number }> = {};
     for (const stage of PIPELINE_STAGES) {
@@ -152,49 +223,13 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
         counts[status].amount += Number(o['Total Amount'] ?? 0);
       }
     }
-    const maxCount = Math.max(...Object.values(counts).map((c) => c.count), 1);
     return PIPELINE_STAGES.map((stage) => ({
       stage,
       ...counts[stage],
-      isMax: counts[stage].count === maxCount && maxCount > 0,
     }));
   }, [orders]);
 
-  // ── Chart: Monthly PO Spend ──────────────────
-  const monthlySpend = useMemo(() => {
-    const months: Record<string, number> = {};
-    for (const o of orders) {
-      const date = o['Order Date'];
-      if (!date) continue;
-      const month = formatMonth(date);
-      if (month === 'Unknown') continue;
-      months[month] = (months[month] || 0) + Number(o['Total Amount'] ?? 0);
-    }
-    return Object.entries(months)
-      .map(([name, amount]) => ({ name, amount }))
-      .sort((a, b) => new Date(a.name).getTime() - new Date(b.name).getTime())
-      .slice(-12);
-  }, [orders]);
-
-  // ── Chart: Spend by Supplier (top 5) ─────────
-  const supplierSpend = useMemo(() => {
-    const totals: Record<string, number> = {};
-    for (const o of orders) {
-      const name = resolveSupplier(o) || 'Unknown';
-      totals[name] = (totals[name] || 0) + Number(o['Total Amount'] ?? 0);
-    }
-    const sorted = Object.entries(totals)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
-
-    if (sorted.length <= 5) return sorted;
-    const top5 = sorted.slice(0, 5);
-    const otherTotal = sorted.slice(5).reduce((sum, s) => sum + s.value, 0);
-    if (otherTotal > 0) top5.push({ name: 'Other', value: otherTotal });
-    return top5;
-  }, [orders, resolveSupplier]);
-
-  // ── Filtered + grouped ───────────────────────
+  // ── Filtered + grouped ────────────────────────
   const filtered = useMemo(() => {
     return orders.filter((o) => {
       const status = resolveStatus(o);
@@ -227,7 +262,7 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
     return groups;
   }, [filtered]);
 
-  // ── CRUD handlers ────────────────────────────
+  // ── CRUD handlers ──────────────────────────────
   const handleCreate = async (values: Record<string, any>) => {
     await createRecord(TABLES.PURCHASE_ORDERS, values);
     setModalMode(null);
@@ -265,7 +300,7 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
     setModalMode('delete');
   };
 
-  // ── Unique statuses/priorities for filters ───
+  // ── Unique statuses/priorities for filters ────
   const allStatuses = useMemo(() => {
     const s = new Set<string>();
     for (const o of orders) s.add(resolveStatus(o));
@@ -297,86 +332,125 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
         </button>
       </div>
 
-      {/* ── KPI Row ──────────────────────────────── */}
+      {/* ── Spend Analytics KPIs ──────────────────── */}
       <div className="kpi-grid">
         <div className="kpi-card">
-          <div className="kpi-label">Total POs</div>
-          <div className="kpi-value" style={{ color: '#6366f1' }}>{kpis.totalPOs}</div>
-          <div className="kpi-trend neutral">{filtered.length} shown after filters</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label">Total Spend</div>
+          <div className="kpi-label">Total PO Value</div>
           <div className="kpi-value" style={{ color: '#10b981' }}>{formatCurrency(kpis.totalSpend)}</div>
+          <div className="kpi-trend neutral">{orders.length} purchase orders</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">Average Order Value</div>
+          <div className="kpi-value" style={{ color: '#6366f1' }}>{formatCurrency(kpis.avgOrderValue)}</div>
+          <div className="kpi-trend neutral">per purchase order</div>
+        </div>
+        <div className="kpi-card">
+          <div className="kpi-label">On-Time Delivery Rate</div>
+          <div className="kpi-value" style={{ color: kpis.onTimeRate >= 80 ? '#10b981' : kpis.onTimeRate >= 60 ? '#f59e0b' : '#ef4444' }}>
+            {kpis.onTimeRate}%
+          </div>
           <div className="kpi-trend neutral">
-            Avg {formatCurrency(kpis.totalPOs > 0 ? kpis.totalSpend / kpis.totalPOs : 0)} per order
+            {kpis.lateCount > 0 ? `${kpis.lateCount} late of ${kpis.totalWithDate} tracked` : 'All on time'}
           </div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Pending</div>
-          <div className="kpi-value" style={{ color: kpis.pendingCount > 0 ? '#f59e0b' : '#10b981' }}>
-            {kpis.pendingCount}
-          </div>
-          <div className="kpi-trend neutral">Draft + Approved</div>
-        </div>
-        <div className="kpi-card">
-          <div className="kpi-label">Active Suppliers</div>
-          <div className="kpi-value" style={{ color: '#06b6d4' }}>{kpis.activeSuppliers}</div>
-          <div className="kpi-trend neutral">{suppliers.length} total registered</div>
+          <div className="kpi-label">Top Supplier</div>
+          <div className="kpi-value" style={{ color: '#06b6d4', fontSize: 18 }}>{kpis.topSupplierName}</div>
+          <div className="kpi-trend neutral">{kpis.topSupplierCount} orders</div>
         </div>
       </div>
 
-      {/* ── Pipeline ─────────────────────────────── */}
-      <div className="pipeline">
-        {pipelineData.map((p) => (
-          <div
-            key={p.stage}
-            className={`pipeline-stage${p.isMax ? ' active' : ''}`}
-            onClick={() => setStatusFilter(statusFilter === p.stage ? 'All' : p.stage)}
-            style={{ cursor: 'pointer', borderBottom: `3px solid ${PIPELINE_COLORS[p.stage] || 'var(--border)'}` }}
-          >
-            <div className="pipeline-count" style={{ color: PIPELINE_COLORS[p.stage] || 'var(--text)' }}>
-              {p.count}
+      {/* ── Supplier Concentration Risk + Budget Burn ── */}
+      <div className="grid-2" style={{ marginBottom: 20 }}>
+        {/* Supplier Concentration */}
+        <div className="glass-card" style={{ padding: '16px 20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>Supplier Concentration</div>
+            {supplierConcentration?.isRisk && (
+              <span style={{
+                fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                padding: '3px 10px', borderRadius: 100,
+                background: 'rgba(239,68,68,0.15)', color: '#ef4444',
+              }}>
+                RISK
+              </span>
+            )}
+          </div>
+          {supplierConcentration && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+                <span>{supplierConcentration.supplierName}</span>
+                <span style={{ fontWeight: 700, color: supplierConcentration.isRisk ? '#ef4444' : '#10b981' }}>
+                  {supplierConcentration.percentage}%
+                </span>
+              </div>
+              <div className="progress-bar">
+                <div
+                  className={`progress-bar-fill ${supplierConcentration.isRisk ? 'red' : 'green'}`}
+                  style={{ width: `${Math.min(supplierConcentration.percentage, 100)}%` }}
+                />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+                {supplierConcentration.isRisk
+                  ? 'Warning: Single supplier holds >40% of POs. Consider diversifying.'
+                  : 'Supplier diversification is healthy.'}
+              </div>
             </div>
-            <div className="pipeline-label">{p.stage}</div>
-            <div className="pipeline-value">{formatCurrency(p.amount)}</div>
+          )}
+        </div>
+
+        {/* Budget Burn Rate */}
+        <div className="glass-card" style={{ padding: '16px 20px' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', marginBottom: 10 }}>Budget Burn Rate</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>
+            <span>{formatCurrency(budgetBurn.spent)} spent</span>
+            <span>{formatCurrency(budgetBurn.budget)} budget</span>
           </div>
-        ))}
+          <div className="progress-bar" style={{ height: 10 }}>
+            <div
+              className={`progress-bar-fill ${budgetBurn.pct >= 90 ? 'red' : budgetBurn.pct >= 70 ? 'yellow' : 'green'}`}
+              style={{ width: `${Math.min(budgetBurn.pct, 100)}%` }}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-dim)', marginTop: 6 }}>
+            <span>{budgetBurn.pct}% consumed</span>
+            <span>{formatCurrency(budgetBurn.budget - budgetBurn.spent)} remaining</span>
+          </div>
+        </div>
       </div>
 
-      {/* ── Charts ───────────────────────────────── */}
+      {/* ── Charts ─────────────────────────────────── */}
       <div className="grid-2" style={{ marginBottom: 24 }}>
+        {/* Spend by Supplier (horizontal bar) */}
         <div className="chart-card">
-          <h3>Monthly PO Spend</h3>
-          {monthlySpend.length === 0 ? (
-            <div className="empty-state" style={{ padding: 40 }}>No order date data</div>
+          <h3>Spend by Supplier</h3>
+          {supplierSpend.length === 0 ? (
+            <div className="empty-state" style={{ padding: 40 }}>No supplier data</div>
           ) : (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={monthlySpend} margin={{ top: 4, right: 8, bottom: 4, left: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={GRID_STROKE} />
+              <BarChart data={supplierSpend} layout="vertical" margin={{ top: 4, right: 20, bottom: 4, left: 10 }}>
                 <XAxis
-                  dataKey="name"
-                  tick={AXIS_TICK}
-                  axisLine={{ stroke: 'rgba(255,255,255,0.06)' }}
-                  tickLine={false}
-                  interval={0}
-                  angle={-35}
-                  textAnchor="end"
-                  height={55}
-                />
-                <YAxis
+                  type="number"
                   tick={AXIS_TICK}
                   axisLine={false}
                   tickLine={false}
-                  width={60}
-                  tickFormatter={(v) => '$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : v)}
+                  tickFormatter={(v: number) => '$' + (v >= 1000 ? (v / 1000).toFixed(0) + 'k' : String(v))}
+                />
+                <YAxis
+                  type="category"
+                  dataKey="name"
+                  tick={AXIS_TICK}
+                  axisLine={false}
+                  tickLine={false}
+                  width={100}
                 />
                 <Tooltip
                   {...CHART_TOOLTIP}
                   cursor={{ fill: 'rgba(99,102,241,0.08)' }}
                   formatter={(value: any) => [formatCurrency(value), 'Spend']}
                 />
-                <Bar dataKey="amount" name="Spend" radius={[4, 4, 0, 0]} maxBarSize={40}>
-                  {monthlySpend.map((_, idx) => (
+                <Bar dataKey="value" name="Spend" radius={[0, 4, 4, 0]} maxBarSize={24}>
+                  {supplierSpend.map((_, idx) => (
                     <Cell key={idx} fill={COLORS[idx % COLORS.length]} fillOpacity={0.85} />
                   ))}
                 </Bar>
@@ -384,46 +458,57 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
             </ResponsiveContainer>
           )}
         </div>
+
+        {/* PO Status Pipeline (vertical bar with pipeline stages) */}
         <div className="chart-card">
-          <h3>Spend by Supplier</h3>
-          {supplierSpend.length === 0 ? (
-            <div className="empty-state" style={{ padding: 40 }}>No supplier data</div>
-          ) : (
-            <ResponsiveContainer width="100%" height={280}>
-              <PieChart>
-                <Pie
-                  data={supplierSpend}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={95}
-                  paddingAngle={3}
-                  dataKey="value"
-                  stroke="none"
+          <h3>PO Status Pipeline</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '8px 0' }}>
+            {pipelineData.map((p, idx) => {
+              const maxCount = Math.max(...pipelineData.map(d => d.count), 1);
+              const widthPct = maxCount > 0 ? Math.max((p.count / maxCount) * 100, p.count > 0 ? 8 : 0) : 0;
+              return (
+                <div
+                  key={p.stage}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setStatusFilter(statusFilter === p.stage ? 'All' : p.stage)}
                 >
-                  {supplierSpend.map((_, idx) => (
-                    <Cell key={idx} fill={COLORS[idx % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  {...CHART_TOOLTIP}
-                  formatter={(value: any) => [formatCurrency(value), 'Spend']}
-                />
-                <Legend
-                  verticalAlign="bottom"
-                  iconType="circle"
-                  iconSize={8}
-                  formatter={(value: string) => (
-                    <span style={{ color: '#94a3b8', fontSize: 12, fontWeight: 500 }}>{value}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div style={{
+                        width: 8, height: 8, borderRadius: '50%',
+                        background: PIPELINE_COLORS[p.stage] || '#64748b',
+                      }} />
+                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{p.stage}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)' }}>{p.count}</span>
+                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatCurrency(p.amount)}</span>
+                    </div>
+                  </div>
+                  <div style={{ height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.04)', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${widthPct}%`,
+                      borderRadius: 3,
+                      background: PIPELINE_COLORS[p.stage] || '#64748b',
+                      transition: 'width 300ms ease',
+                    }} />
+                  </div>
+                  {idx < pipelineData.length - 1 && (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '2px 0' }}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.15)" strokeWidth="2.5">
+                        <path d="M12 5v14M19 12l-7 7-7-7" />
+                      </svg>
+                    </div>
                   )}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-          )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {/* ── Filters ──────────────────────────────── */}
+      {/* ── Filters ────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16, flexWrap: 'wrap' }}>
         <div className="search-bar">
           <span className="search-icon">
@@ -464,7 +549,7 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
         </div>
       </div>
 
-      {/* ── PO Cards by Status ───────────────────── */}
+      {/* ── PO Cards by Status ─────────────────────── */}
       {filtered.length === 0 ? (
         <div className="glass-card">
           <div className="empty-state">
@@ -489,9 +574,7 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
                   <div
                     style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: '50%',
+                      width: 10, height: 10, borderRadius: '50%',
                       background: PIPELINE_COLORS[stage] || 'var(--text-dim)',
                       boxShadow: `0 0 8px ${PIPELINE_COLORS[stage] || 'transparent'}40`,
                     }}
@@ -516,18 +599,12 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
                             {order['PO Number'] || '--'}
                           </span>
                           {priority && (
-                            <span
-                              style={{
-                                fontSize: 10,
-                                fontWeight: 700,
-                                textTransform: 'uppercase',
-                                letterSpacing: '0.06em',
-                                padding: '2px 8px',
-                                borderRadius: 100,
-                                background: (PRIORITY_COLORS[priority] || '#64748b') + '20',
-                                color: PRIORITY_COLORS[priority] || '#64748b',
-                              }}
-                            >
+                            <span style={{
+                              fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
+                              padding: '2px 8px', borderRadius: 100,
+                              background: (PRIORITY_COLORS[priority] || '#64748b') + '20',
+                              color: PRIORITY_COLORS[priority] || '#64748b',
+                            }}>
                               {priority}
                             </span>
                           )}
@@ -580,12 +657,12 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
         </div>
       )}
 
-      {/* ── Create Modal ─────────────────────────── */}
+      {/* ── Create Modal ───────────────────────────── */}
       <Modal open={modalMode === 'create'} onClose={() => setModalMode(null)} title="New Purchase Order">
         <RecordForm fields={formFields} onSubmit={handleCreate} onCancel={() => setModalMode(null)} submitLabel="Create" />
       </Modal>
 
-      {/* ── Edit Modal ───────────────────────────── */}
+      {/* ── Edit Modal ─────────────────────────────── */}
       <Modal open={modalMode === 'edit'} onClose={() => { setModalMode(null); setSelected(null); }} title="Edit Purchase Order">
         {selected && (
           <RecordForm
@@ -598,12 +675,18 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
         )}
       </Modal>
 
-      {/* ── View Modal ───────────────────────────── */}
+      {/* ── View Modal ─────────────────────────────── */}
       <Modal open={modalMode === 'view'} onClose={() => { setModalMode(null); setSelected(null); }} title="Purchase Order Detail">
         {selected && (() => {
           const supplier = resolveSupplier(selected);
           const status = resolveStatus(selected);
           const priority = resolvePriority(selected);
+          // Find PO Lines for this order
+          const orderLines = poLines.filter(line => {
+            const ref = line['Purchase Order'];
+            const linePoId = Array.isArray(ref) ? ref[0] : ref;
+            return linePoId === selected.id;
+          });
           return (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
@@ -645,6 +728,33 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
                   <div className="detail-field-value">{selected['Notes'] || '--'}</div>
                 </div>
               </div>
+              {orderLines.length > 0 && (
+                <div style={{ marginTop: 16 }}>
+                  <div className="detail-field-label" style={{ marginBottom: 8 }}>PO Lines ({orderLines.length})</div>
+                  <div className="table-container">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Item</th>
+                          <th>Qty</th>
+                          <th>Unit Price</th>
+                          <th>Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orderLines.map((line) => (
+                          <tr key={line.id}>
+                            <td>{line['Item Name'] || line['Item'] || '--'}</td>
+                            <td>{line['Quantity'] ?? '--'}</td>
+                            <td>{formatCurrency(line['Unit Price'])}</td>
+                            <td style={{ fontWeight: 600, color: '#10b981' }}>{formatCurrency(line['Line Total'] || line['Total'])}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
               <div className="form-actions">
                 <button className="btn btn-secondary" onClick={() => { setModalMode(null); setSelected(null); }}>Close</button>
                 <button className="btn btn-primary" onClick={() => { setModalMode('edit'); }}>Edit</button>
@@ -654,7 +764,7 @@ export function PurchaseOrdersClient({ orders: initialOrders, suppliers }: Props
         })()}
       </Modal>
 
-      {/* ── Delete Confirmation ──────────────────── */}
+      {/* ── Delete Confirmation ────────────────────── */}
       <Modal open={modalMode === 'delete'} onClose={() => { setModalMode(null); setSelected(null); }} title="Delete Purchase Order">
         {selected && (
           <div>
