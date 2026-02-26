@@ -1,0 +1,30 @@
+// Table name constants matching ERPAI backend
+export const TABLES = {
+  ITEMS: 'Items',
+  SUPPLIERS: 'Suppliers',
+  CUSTOMERS: 'Customers',
+  WAREHOUSES: 'Warehouses',
+  WORK_CENTERS: 'Work Centers',
+  UNITS_OF_MEASURE: 'Units of Measure',
+  BILL_OF_MATERIALS: 'Bill of Materials',
+  BOM_LINES: 'BOM Lines',
+  ROUTINGS: 'Routings',
+  ROUTING_OPERATIONS: 'Routing Operations',
+  PURCHASE_ORDERS: 'Purchase Orders',
+  PURCHASE_ORDER_LINES: 'Purchase Order Lines',
+  SALES_ORDERS: 'Sales Orders',
+  SALES_ORDER_LINES: 'Sales Order Lines',
+  PRODUCTION_ORDERS: 'Production Orders',
+  PRODUCTION_ORDER_OPS: 'Production Order Operations',
+  INVENTORY: 'Inventory',
+  INVENTORY_TRANSACTIONS: 'Inventory Transactions',
+  DEMAND_FORECASTS: 'Demand Forecasts',
+  MRP_RUNS: 'MRP Runs',
+  MRP_RECOMMENDATIONS: 'MRP Recommendations',
+  QUALITY_INSPECTIONS: 'Quality Inspections',
+  QUALITY_CHECK_ITEMS: 'Quality Check Items',
+  CAPACITY_PLANS: 'Capacity Plans',
+  COST_CENTERS: 'Cost Centers',
+} as const;
+
+export type TableName = (typeof TABLES)[keyof typeof TABLES];
